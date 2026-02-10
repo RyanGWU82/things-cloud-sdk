@@ -1,8 +1,13 @@
+.DS_Store
+
 # Binaries for programs and plugins
 *.exe
 *.dll
 *.so
 *.dylib
+/things-cli
+/cmd/things-cli/things-cli
+/cmd/thingsweb/thingsweb
 
 # Test binary, build with `go test -c`
 *.test
@@ -12,3 +17,7 @@
 
 # Project-local glide cache, RE: https://github.com/Masterminds/glide/issues/736
 .glide/
+
+# Environment files
+*.env
+/tmp/

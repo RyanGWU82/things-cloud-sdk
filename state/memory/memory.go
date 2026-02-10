@@ -2,7 +2,7 @@ package memory
 
 import (
 	"encoding/json"
-	"fmt"
+	// "fmt"
 	"sort"
 
 	things "github.com/nicolai86/things-cloud-sdk"
@@ -41,8 +41,8 @@ func (s *State) updateTask(item things.TaskActionItem) *things.Task {
 	if item.P.Title != nil {
 		t.Title = *item.P.Title
 	}
-	if item.P.IsProject != nil {
-		t.IsProject = bool(*item.P.IsProject)
+	if item.P.Type != nil {
+		t.Type = *item.P.Type
 	}
 	if item.P.Status != nil {
 		t.Status = *item.P.Status
@@ -85,10 +85,41 @@ func (s *State) updateTask(item things.TaskActionItem) *things.Task {
 		t.ParentTaskIDs = ids
 	}
 	if item.P.Note != nil {
-		t.Note = *item.P.Note
+		var noteStr string
+		if err := json.Unmarshal(item.P.Note, &noteStr); err == nil {
+			t.Note = noteStr
+		} else {
+			var note things.Note
+			if err := json.Unmarshal(item.P.Note, &note); err == nil {
+				switch note.Type {
+				case things.NoteTypeFullText:
+					t.Note = note.Value
+				case things.NoteTypeDelta:
+					t.Note = things.ApplyPatches(t.Note, note.Patches)
+				}
+			}
+		}
 	}
 	if item.P.Title != nil {
 		t.Title = *item.P.Title
+	}
+	if item.P.AlarmTimeOffset != nil {
+		t.AlarmTimeOffset = item.P.AlarmTimeOffset
+	}
+	if item.P.TagIDs != nil {
+		t.TagIDs = item.P.TagIDs
+	}
+	if item.P.DueOrder != nil {
+		t.DueOrder = *item.P.DueOrder
+	}
+	if item.P.TaskIndex != nil {
+		t.TodayIndex = *item.P.TaskIndex
+	}
+	if item.P.DelegateIDs != nil {
+		t.DelegateIDs = *item.P.DelegateIDs
+	}
+	if item.P.RecurrenceTaskIDs != nil {
+		t.RecurrenceIDs = *item.P.RecurrenceTaskIDs
 	}
 
 	return t
@@ -164,10 +195,10 @@ func (s *State) updateTag(item things.TagActionItem) *things.Tag {
 func (s *State) Update(items ...things.Item) error {
 	for _, rawItem := range items {
 		switch rawItem.Kind {
-		case things.ItemKindTask:
+		case things.ItemKindTask, things.ItemKindTask4, things.ItemKindTask3, things.ItemKindTaskPlain:
 			item := things.TaskActionItem{Item: rawItem}
 			if err := json.Unmarshal(rawItem.P, &item.P); err != nil {
-				return err
+				continue // Skip items that can't be parsed
 			}
 
 			switch item.Action {
@@ -178,13 +209,13 @@ func (s *State) Update(items ...things.Item) error {
 			case things.ItemActionDeleted:
 				delete(s.Tasks, item.UUID())
 			default:
-				fmt.Printf("Action %q on %q is not implemented yet", item.Action, rawItem.Kind)
+				// Unsupported action: skip
 			}
 
-		case things.ItemKindChecklistItem:
+		case things.ItemKindChecklistItem, things.ItemKindChecklistItem2, things.ItemKindChecklistItem3:
 			item := things.CheckListActionItem{Item: rawItem}
 			if err := json.Unmarshal(rawItem.P, &item.P); err != nil {
-				return err
+				continue // Skip unparseable items
 			}
 
 			switch item.Action {
@@ -195,13 +226,13 @@ func (s *State) Update(items ...things.Item) error {
 			case things.ItemActionDeleted:
 				delete(s.CheckListItems, item.UUID())
 			default:
-				fmt.Printf("Action %q on %q is not implemented yet", item.Action, rawItem.Kind)
+				// Unsupported action: skip
 			}
 
-		case things.ItemKindArea:
+		case things.ItemKindArea, things.ItemKindArea3, things.ItemKindAreaPlain:
 			item := things.AreaActionItem{Item: rawItem}
 			if err := json.Unmarshal(rawItem.P, &item.P); err != nil {
-				return err
+				continue // Skip unparseable items
 			}
 
 			switch item.Action {
@@ -213,13 +244,13 @@ func (s *State) Update(items ...things.Item) error {
 			case things.ItemActionDeleted:
 				delete(s.Areas, item.UUID())
 			default:
-				fmt.Printf("Action %q on %q is not implemented yet", item.Action, rawItem.Kind)
+				// Unsupported action: skip
 			}
 
-		case things.ItemKindTag:
+		case things.ItemKindTag, things.ItemKindTag4, things.ItemKindTagPlain:
 			item := things.TagActionItem{Item: rawItem}
 			if err := json.Unmarshal(rawItem.P, &item.P); err != nil {
-				return err
+				continue // Skip unparseable items
 			}
 
 			switch item.Action {
@@ -230,11 +261,22 @@ func (s *State) Update(items ...things.Item) error {
 			case things.ItemActionDeleted:
 				delete(s.Tags, item.UUID())
 			default:
-				fmt.Printf("Action %q on %q is not implemented yet", item.Action, rawItem.Kind)
+				// Unsupported action: skip
 			}
 
+		case things.ItemKindTombstone:
+			item := things.TombstoneActionItem{Item: rawItem}
+			if err := json.Unmarshal(rawItem.P, &item.P); err != nil {
+				continue
+			}
+			oid := item.P.DeletedObjectID
+			delete(s.Tasks, oid)
+			delete(s.Areas, oid)
+			delete(s.Tags, oid)
+			delete(s.CheckListItems, oid)
+
 		default:
-			fmt.Printf("%q is not implemented yet\n", rawItem.Kind)
+			// Unsupported kind: skip
 		}
 	}
 	return nil
@@ -244,7 +286,7 @@ func (s *State) Update(items ...things.Item) error {
 func (s *State) Projects() []*things.Task {
 	tasks := []*things.Task{}
 	for _, task := range s.Tasks {
-		if !task.IsProject {
+		if task.Type != things.TaskTypeProject {
 			continue
 		}
 		tasks = append(tasks, task)
@@ -280,6 +322,9 @@ func (s *State) Subtasks(root *things.Task, opts ListOption) []*things.Task {
 }
 
 func hasArea(task *things.Task, state *State) bool {
+	if task == nil {
+		return false
+	}
 	if len(task.AreaIDs) != 0 {
 		return true
 	}
@@ -330,7 +375,7 @@ func (s *State) AreaByName(name string) *things.Area {
 // ProjectByName returns an project if the name matches
 func (s *State) ProjectByName(name string) *things.Task {
 	for _, task := range s.Tasks {
-		if !task.IsProject {
+		if task.Type != things.TaskTypeProject {
 			continue
 		}
 		if task.Title == name {
@@ -389,6 +434,52 @@ func (s *State) CheckListItemsByTask(task *things.Task, opts ListOption) []*thin
 		return items[i].Index < items[j].Index
 	})
 	return items
+}
+
+// Headings returns all headings within a project
+func (s *State) Headings(projectID string) []*things.Task {
+	tasks := []*things.Task{}
+	for _, task := range s.Tasks {
+		if task.Type != things.TaskTypeHeading {
+			continue
+		}
+		for _, pid := range task.ParentTaskIDs {
+			if pid == projectID {
+				tasks = append(tasks, task)
+				break
+			}
+		}
+	}
+	sort.Slice(tasks, func(i, j int) bool {
+		return tasks[i].Index < tasks[j].Index
+	})
+	return tasks
+}
+
+// TasksByHeading returns tasks assigned to a specific heading (action group)
+func (s *State) TasksByHeading(headingID string, opts ListOption) []*things.Task {
+	tasks := []*things.Task{}
+	for _, task := range s.Tasks {
+		if task.Type != things.TaskTypeTask {
+			continue
+		}
+		if task.Status == things.TaskStatusCompleted && opts.ExcludeCompleted {
+			continue
+		}
+		if task.InTrash && opts.ExcludeInTrash {
+			continue
+		}
+		for _, agr := range task.ActionGroupIDs {
+			if agr == headingID {
+				tasks = append(tasks, task)
+				break
+			}
+		}
+	}
+	sort.Slice(tasks, func(i, j int) bool {
+		return tasks[i].Index < tasks[j].Index
+	})
+	return tasks
 }
 
 // SubTags returns all child tags for a given root, ensuring sort order is kept intact

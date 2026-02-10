@@ -23,12 +23,19 @@ const (
 type TaskSchedule int
 
 const (
-	// TaskScheduleToday indicates tasks which should be completed today
-	TaskScheduleToday TaskSchedule = 0
-	// TaskScheduleAnytime indicates tasks which can be completed anyday
+	// TaskScheduleInbox indicates unprocessed tasks in the Inbox (st=0)
+	TaskScheduleInbox TaskSchedule = 0
+	// TaskScheduleAnytime indicates started tasks; displayed in Today when sr/tir
+	// are set to today's date, or in Anytime when sr/tir are null (st=1)
 	TaskScheduleAnytime TaskSchedule = 1
-	// TaskScheduleSomeday indicates tasks which might never be completed
+	// TaskScheduleSomeday indicates deferred tasks; displayed in Upcoming when
+	// sr/tir have a future date, or in Someday when sr/tir are null (st=2)
 	TaskScheduleSomeday TaskSchedule = 2
+
+	// TaskScheduleToday is deprecated: use TaskScheduleAnytime with sr/tir dates.
+	// The "st" field value 0 actually means Inbox, not Today.
+	// Kept for backward compatibility.
+	TaskScheduleToday = TaskScheduleInbox
 )
 
 // TaskStatus describes if a thing is completed or not
@@ -48,35 +55,50 @@ type ItemKind string
 
 var (
 	// ItemKindChecklistItem identifies a CheckList
-	ItemKindChecklistItem ItemKind = "ChecklistItem"
+	ItemKindChecklistItem  ItemKind = "ChecklistItem"
+	ItemKindChecklistItem2 ItemKind = "ChecklistItem2"
+	ItemKindChecklistItem3 ItemKind = "ChecklistItem3"
 	// ItemKindTask identifies a Task or Subtask
-	ItemKindTask ItemKind = "Task6"
+	ItemKindTask      ItemKind = "Task6"
+	ItemKindTask4     ItemKind = "Task4"
+	ItemKindTask3     ItemKind = "Task3"
+	ItemKindTaskPlain ItemKind = "Task"
 	// ItemKindArea identifies an Area
-	ItemKindArea ItemKind = "Area2"
+	ItemKindArea      ItemKind = "Area2"
+	ItemKindArea3     ItemKind = "Area3"
+	ItemKindAreaPlain ItemKind = "Area"
 	// ItemKindSettings  identifies a setting
 	ItemKindSettings ItemKind = "Settings3"
 	// ItemKindTag identifies a Tag
-	ItemKindTag ItemKind = "Tag3"
+	ItemKindTag      ItemKind = "Tag3"
+	ItemKindTag4     ItemKind = "Tag4"
+	ItemKindTagPlain  ItemKind = "Tag"
+	ItemKindTombstone ItemKind = "Tombstone2"
 )
 
 // Timestamp allows unix epochs represented as float or ints to be unmarshalled
 // into time.Time objects
 type Timestamp time.Time
 
-// UnmarshalJSON takes a unix epoch from float/ int and creates a time.Time instance
+// UnmarshalJSON takes a unix epoch from float/ int and creates a time.Time instance,
+// preserving sub-second precision.
 func (t *Timestamp) UnmarshalJSON(bs []byte) error {
 	var d float64
 	if err := json.Unmarshal(bs, &d); err != nil {
 		return err
 	}
-	*t = Timestamp(time.Unix(int64(d), 0).UTC())
+	sec := int64(d)
+	nsec := int64((d - float64(sec)) * 1e9)
+	*t = Timestamp(time.Unix(sec, nsec).UTC())
 	return nil
 }
 
-// MarshalJSON convers a timestamp into unix nano representation
+// MarshalJSON converts a timestamp into a fractional unix epoch (seconds with sub-second precision),
+// matching the format used by the Things Cloud API (e.g. 1770713623.4716659).
 func (t *Timestamp) MarshalJSON() ([]byte, error) {
-	var tt = time.Time(*t).Unix()
-	return json.Marshal(tt)
+	tt := time.Time(*t)
+	ts := float64(tt.UnixNano()) / 1e9
+	return json.Marshal(ts)
 }
 
 // Format returns a textual representation of the time value formatted according to layout
@@ -111,6 +133,15 @@ func (b *Boolean) MarshalJSON() ([]byte, error) {
 	}
 	return json.Marshal(d)
 }
+
+// TaskType describes the type of a task entity
+type TaskType int
+
+const (
+	TaskTypeTask    TaskType = 0
+	TaskTypeProject TaskType = 1
+	TaskTypeHeading TaskType = 2
+)
 
 // Task describes a Task inside things.
 // 0|uuid|TEXT|0||1
@@ -162,9 +193,15 @@ type Task struct {
 	AreaIDs          []string
 	ParentTaskIDs    []string
 	ActionGroupIDs   []string
-	InTrash          bool
-	Schedule         TaskSchedule
-	IsProject        bool
+	InTrash         bool
+	Schedule        TaskSchedule
+	Type            TaskType
+	TodayIndex      int
+	DueOrder        int
+	AlarmTimeOffset *int
+	TagIDs          []string
+	RecurrenceIDs   []string
+	DelegateIDs     []string
 }
 
 // TaskActionItemPayload describes the payload for modifying Tasks, and also Projects,
@@ -178,9 +215,9 @@ type TaskActionItemPayload struct {
 	DeadlineDate      *Timestamp             `json:"dd,omitempty"`  //
 	TaskIR            *Timestamp             `json:"tir,omitempty"` // hm, not sure what tir stands for
 	Status            *TaskStatus            `json:"ss,omitempty"`
-	IsProject         *Boolean               `json:"tp,omitempty"`
+	Type              *TaskType              `json:"tp,omitempty"`
 	Title             *string                `json:"tt,omitempty"`
-	Note              *string                `json:"nt,omitempty"`
+	Note              json.RawMessage        `json:"nt,omitempty"`
 	AreaIDs           *[]string              `json:"ar,omitempty"`
 	ParentTaskIDs     *[]string              `json:"pr,omitempty"`
 	TagIDs            []string               `json:"tg,omitempty"`
@@ -189,7 +226,20 @@ type TaskActionItemPayload struct {
 	RecurrenceTaskIDs *[]string              `json:"rt,omitempty"`
 	Schedule          *TaskSchedule          `json:"st,omitempty"`
 	ActionGroupIDs    *[]string              `json:"agr,omitempty"`
-	Repeater          *RepeaterConfiguration `json:"rr,omitempty"`
+	Repeater                  *RepeaterConfiguration `json:"rr,omitempty"`
+	DueOrder                  *int                   `json:"do,omitempty"`
+	Leavable                  *bool                  `json:"lt,omitempty"`
+	IsCompletedByChildren     *bool                  `json:"icp,omitempty"`
+	IsCompletedCount          *int                   `json:"icc,omitempty"`
+	InstanceCreationStartDate *Timestamp             `json:"icsd,omitempty"`
+	SubtaskBehavior           *int                   `json:"sb,omitempty"`
+	DelegateIDs               *[]string              `json:"dl,omitempty"`
+	LastActionItemID          *string                `json:"lai,omitempty"`
+	ReminderDate              *Timestamp             `json:"rmd,omitempty"`
+	AlarmTimeOffset           *int                   `json:"ato,omitempty"`
+	ActionRequiredDate        *Timestamp             `json:"acrd,omitempty"`
+	DeadlineSuppression       *Timestamp             `json:"dds,omitempty"`
+	ExtensionData             json.RawMessage        `json:"xx,omitempty"`
 	//  {
 	//      "acrd": null,
 	//      "ar": [],
@@ -250,10 +300,11 @@ type Tag struct {
 
 // TagActionItemPayload describes the payload for modifying Areas
 type TagActionItemPayload struct {
-	IX           *int      `json:"ix"`
-	Title        *string   `json:"tt"`
-	ShortHand    *string   `json:"sh"`
-	ParentTagIDs *[]string `json:"pn"`
+	IX            *int            `json:"ix"`
+	Title         *string        `json:"tt"`
+	ShortHand     *string        `json:"sh"`
+	ParentTagIDs  *[]string      `json:"pn"`
+	ExtensionData json.RawMessage `json:"xx,omitempty"`
 }
 
 // TagActionItem describes an event on a tag
@@ -331,8 +382,10 @@ type CheckListActionItemPayload struct {
 	Index            *int        `json:"ix"`
 	Status           *TaskStatus `json:"ss,omitempty"`
 	Title            *string     `json:"tt,omitempty"`
-	CompletionDate   *Timestamp  `json:"sp,omitempty"`
-	TaskIDs          *[]string   `json:"ts,omitempty"`
+	CompletionDate   *Timestamp      `json:"sp,omitempty"`
+	TaskIDs          *[]string       `json:"ts,omitempty"`
+	Leavable         *bool           `json:"lt,omitempty"`
+	ExtensionData    json.RawMessage `json:"xx,omitempty"`
 }
 
 // CheckListActionItem describes an event on a check list item
@@ -344,4 +397,21 @@ type CheckListActionItem struct {
 // UUID returns the UUID of the modified CheckListItem
 func (item CheckListActionItem) UUID() string {
 	return item.Item.UUID
+}
+
+// TombstoneActionItemPayload describes the payload for tombstone deletion records
+type TombstoneActionItemPayload struct {
+	DeletedObjectID string  `json:"dloid"`
+	DeletionDate    float64 `json:"dld"`
+}
+
+// TombstoneActionItem describes a tombstone deletion event
+type TombstoneActionItem struct {
+	Item
+	P TombstoneActionItemPayload `json:"p"`
+}
+
+// UUID returns the UUID of the TombstoneActionItem
+func (t TombstoneActionItem) UUID() string {
+	return t.Item.UUID
 }
