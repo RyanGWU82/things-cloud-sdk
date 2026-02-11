@@ -283,6 +283,344 @@ func (c TaskTagsChanged) ChangeType() string {
 	return "TaskTagsChanged"
 }
 
+// projectChange provides common fields for project-related changes
+type projectChange struct {
+	baseChange
+	Project *things.Task
+}
+
+// EntityType returns "Project" for all project changes
+func (p projectChange) EntityType() string {
+	return "Project"
+}
+
+// EntityUUID returns the UUID of the project
+func (p projectChange) EntityUUID() string {
+	if p.Project == nil {
+		return ""
+	}
+	return p.Project.UUID
+}
+
+// ProjectCreated indicates a new project was created
+type ProjectCreated struct {
+	projectChange
+}
+
+// ChangeType returns "ProjectCreated"
+func (c ProjectCreated) ChangeType() string {
+	return "ProjectCreated"
+}
+
+// ProjectDeleted indicates a project was permanently deleted
+type ProjectDeleted struct {
+	projectChange
+}
+
+// ChangeType returns "ProjectDeleted"
+func (c ProjectDeleted) ChangeType() string {
+	return "ProjectDeleted"
+}
+
+// ProjectCompleted indicates a project was marked as completed
+type ProjectCompleted struct {
+	projectChange
+}
+
+// ChangeType returns "ProjectCompleted"
+func (c ProjectCompleted) ChangeType() string {
+	return "ProjectCompleted"
+}
+
+// ProjectTitleChanged indicates a project's title was modified
+type ProjectTitleChanged struct {
+	projectChange
+	OldTitle string
+}
+
+// ChangeType returns "ProjectTitleChanged"
+func (c ProjectTitleChanged) ChangeType() string {
+	return "ProjectTitleChanged"
+}
+
+// ProjectTrashed indicates a project was moved to trash
+type ProjectTrashed struct {
+	projectChange
+}
+
+// ChangeType returns "ProjectTrashed"
+func (c ProjectTrashed) ChangeType() string {
+	return "ProjectTrashed"
+}
+
+// ProjectRestored indicates a project was restored from trash
+type ProjectRestored struct {
+	projectChange
+}
+
+// ChangeType returns "ProjectRestored"
+func (c ProjectRestored) ChangeType() string {
+	return "ProjectRestored"
+}
+
+// headingChange provides common fields for heading-related changes
+type headingChange struct {
+	baseChange
+	Heading *things.Task
+}
+
+// EntityType returns "Heading" for all heading changes
+func (h headingChange) EntityType() string {
+	return "Heading"
+}
+
+// EntityUUID returns the UUID of the heading
+func (h headingChange) EntityUUID() string {
+	if h.Heading == nil {
+		return ""
+	}
+	return h.Heading.UUID
+}
+
+// HeadingCreated indicates a new heading was created
+type HeadingCreated struct {
+	headingChange
+	Project *things.Task
+}
+
+// ChangeType returns "HeadingCreated"
+func (c HeadingCreated) ChangeType() string {
+	return "HeadingCreated"
+}
+
+// HeadingDeleted indicates a heading was permanently deleted
+type HeadingDeleted struct {
+	headingChange
+}
+
+// ChangeType returns "HeadingDeleted"
+func (c HeadingDeleted) ChangeType() string {
+	return "HeadingDeleted"
+}
+
+// HeadingTitleChanged indicates a heading's title was modified
+type HeadingTitleChanged struct {
+	headingChange
+	OldTitle string
+}
+
+// ChangeType returns "HeadingTitleChanged"
+func (c HeadingTitleChanged) ChangeType() string {
+	return "HeadingTitleChanged"
+}
+
+// areaChange provides common fields for area-related changes
+type areaChange struct {
+	baseChange
+	Area *things.Area
+}
+
+// EntityType returns "Area" for all area changes
+func (a areaChange) EntityType() string {
+	return "Area"
+}
+
+// EntityUUID returns the UUID of the area
+func (a areaChange) EntityUUID() string {
+	if a.Area == nil {
+		return ""
+	}
+	return a.Area.UUID
+}
+
+// AreaCreated indicates a new area was created
+type AreaCreated struct {
+	areaChange
+}
+
+// ChangeType returns "AreaCreated"
+func (c AreaCreated) ChangeType() string {
+	return "AreaCreated"
+}
+
+// AreaDeleted indicates an area was permanently deleted
+type AreaDeleted struct {
+	areaChange
+}
+
+// ChangeType returns "AreaDeleted"
+func (c AreaDeleted) ChangeType() string {
+	return "AreaDeleted"
+}
+
+// AreaRenamed indicates an area's title was modified
+type AreaRenamed struct {
+	areaChange
+	OldTitle string
+}
+
+// ChangeType returns "AreaRenamed"
+func (c AreaRenamed) ChangeType() string {
+	return "AreaRenamed"
+}
+
+// tagChange provides common fields for tag-related changes
+type tagChange struct {
+	baseChange
+	Tag *things.Tag
+}
+
+// EntityType returns "Tag" for all tag changes
+func (t tagChange) EntityType() string {
+	return "Tag"
+}
+
+// EntityUUID returns the UUID of the tag
+func (t tagChange) EntityUUID() string {
+	if t.Tag == nil {
+		return ""
+	}
+	return t.Tag.UUID
+}
+
+// TagCreated indicates a new tag was created
+type TagCreated struct {
+	tagChange
+}
+
+// ChangeType returns "TagCreated"
+func (c TagCreated) ChangeType() string {
+	return "TagCreated"
+}
+
+// TagDeleted indicates a tag was permanently deleted
+type TagDeleted struct {
+	tagChange
+}
+
+// ChangeType returns "TagDeleted"
+func (c TagDeleted) ChangeType() string {
+	return "TagDeleted"
+}
+
+// TagRenamed indicates a tag's title was modified
+type TagRenamed struct {
+	tagChange
+	OldTitle string
+}
+
+// ChangeType returns "TagRenamed"
+func (c TagRenamed) ChangeType() string {
+	return "TagRenamed"
+}
+
+// TagShortcutChanged indicates a tag's keyboard shortcut was modified
+type TagShortcutChanged struct {
+	tagChange
+	OldShortcut string
+}
+
+// ChangeType returns "TagShortcutChanged"
+func (c TagShortcutChanged) ChangeType() string {
+	return "TagShortcutChanged"
+}
+
+// checklistItemChange provides common fields for checklist item-related changes
+type checklistItemChange struct {
+	baseChange
+	Item *things.CheckListItem
+}
+
+// EntityType returns "ChecklistItem" for all checklist item changes
+func (c checklistItemChange) EntityType() string {
+	return "ChecklistItem"
+}
+
+// EntityUUID returns the UUID of the checklist item
+func (c checklistItemChange) EntityUUID() string {
+	if c.Item == nil {
+		return ""
+	}
+	return c.Item.UUID
+}
+
+// ChecklistItemCreated indicates a new checklist item was created
+type ChecklistItemCreated struct {
+	checklistItemChange
+	Task *things.Task
+}
+
+// ChangeType returns "ChecklistItemCreated"
+func (c ChecklistItemCreated) ChangeType() string {
+	return "ChecklistItemCreated"
+}
+
+// ChecklistItemDeleted indicates a checklist item was permanently deleted
+type ChecklistItemDeleted struct {
+	checklistItemChange
+}
+
+// ChangeType returns "ChecklistItemDeleted"
+func (c ChecklistItemDeleted) ChangeType() string {
+	return "ChecklistItemDeleted"
+}
+
+// ChecklistItemCompleted indicates a checklist item was marked as completed
+type ChecklistItemCompleted struct {
+	checklistItemChange
+	Task *things.Task
+}
+
+// ChangeType returns "ChecklistItemCompleted"
+func (c ChecklistItemCompleted) ChangeType() string {
+	return "ChecklistItemCompleted"
+}
+
+// ChecklistItemUncompleted indicates a checklist item was marked as incomplete
+type ChecklistItemUncompleted struct {
+	checklistItemChange
+	Task *things.Task
+}
+
+// ChangeType returns "ChecklistItemUncompleted"
+func (c ChecklistItemUncompleted) ChangeType() string {
+	return "ChecklistItemUncompleted"
+}
+
+// ChecklistItemTitleChanged indicates a checklist item's title was modified
+type ChecklistItemTitleChanged struct {
+	checklistItemChange
+	OldTitle string
+}
+
+// ChangeType returns "ChecklistItemTitleChanged"
+func (c ChecklistItemTitleChanged) ChangeType() string {
+	return "ChecklistItemTitleChanged"
+}
+
+// UnknownChange represents a change that could not be categorized
+type UnknownChange struct {
+	baseChange
+	entityType string
+	entityUUID string
+	Details    string
+}
+
+// ChangeType returns "UnknownChange"
+func (c UnknownChange) ChangeType() string {
+	return "UnknownChange"
+}
+
+// EntityType returns the entity type string
+func (c UnknownChange) EntityType() string {
+	return c.entityType
+}
+
+// EntityUUID returns the entity UUID
+func (c UnknownChange) EntityUUID() string {
+	return c.entityUUID
+}
+
 // Compile-time interface implementation checks
 var (
 	_ Change = (*TaskCreated)(nil)
@@ -303,4 +641,32 @@ var (
 	_ Change = (*TaskTrashed)(nil)
 	_ Change = (*TaskRestored)(nil)
 	_ Change = (*TaskTagsChanged)(nil)
+
+	_ Change = (*ProjectCreated)(nil)
+	_ Change = (*ProjectDeleted)(nil)
+	_ Change = (*ProjectCompleted)(nil)
+	_ Change = (*ProjectTitleChanged)(nil)
+	_ Change = (*ProjectTrashed)(nil)
+	_ Change = (*ProjectRestored)(nil)
+
+	_ Change = (*HeadingCreated)(nil)
+	_ Change = (*HeadingDeleted)(nil)
+	_ Change = (*HeadingTitleChanged)(nil)
+
+	_ Change = (*AreaCreated)(nil)
+	_ Change = (*AreaDeleted)(nil)
+	_ Change = (*AreaRenamed)(nil)
+
+	_ Change = (*TagCreated)(nil)
+	_ Change = (*TagDeleted)(nil)
+	_ Change = (*TagRenamed)(nil)
+	_ Change = (*TagShortcutChanged)(nil)
+
+	_ Change = (*ChecklistItemCreated)(nil)
+	_ Change = (*ChecklistItemDeleted)(nil)
+	_ Change = (*ChecklistItemCompleted)(nil)
+	_ Change = (*ChecklistItemUncompleted)(nil)
+	_ Change = (*ChecklistItemTitleChanged)(nil)
+
+	_ Change = (*UnknownChange)(nil)
 )
