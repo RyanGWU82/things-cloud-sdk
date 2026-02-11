@@ -16,9 +16,17 @@ const (
 	retryBaseWait = 2 * time.Second
 )
 
+// dbExecutor is the interface for database operations (satisfied by *sql.DB and *sql.Tx)
+type dbExecutor interface {
+	Query(query string, args ...any) (*sql.Rows, error)
+	QueryRow(query string, args ...any) *sql.Row
+	Exec(query string, args ...any) (sql.Result, error)
+}
+
 // Syncer manages persistent sync with Things Cloud
 type Syncer struct {
-	db      *sql.DB
+	rawDB   *sql.DB     // underlying connection for Close() and Begin()
+	db      dbExecutor  // current executor (db or tx)
 	client  *things.Client
 	history *things.History
 }
@@ -30,7 +38,14 @@ func Open(dbPath string, client *things.Client) (*Syncer, error) {
 		return nil, err
 	}
 
+	// Enable WAL mode for better concurrent performance
+	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
+		db.Close()
+		return nil, err
+	}
+
 	s := &Syncer{
+		rawDB:  db,
 		db:     db,
 		client: client,
 	}
@@ -45,7 +60,7 @@ func Open(dbPath string, client *things.Client) (*Syncer, error) {
 
 // Close closes the database connection
 func (s *Syncer) Close() error {
-	return s.db.Close()
+	return s.rawDB.Close()
 }
 
 // isRetryableError returns true if the error is a temporary server error worth retrying.

@@ -1,6 +1,6 @@
 package sync
 
-const schemaVersion = 1
+const schemaVersion = 2
 
 const schema = `
 -- Schema version tracking
@@ -93,6 +93,34 @@ CREATE TABLE IF NOT EXISTS change_log (
 
 CREATE INDEX IF NOT EXISTS idx_change_log_synced_at ON change_log(synced_at);
 CREATE INDEX IF NOT EXISTS idx_change_log_entity ON change_log(entity_type, entity_uuid);
+CREATE INDEX IF NOT EXISTS idx_change_log_server_index ON change_log(server_index);
+
+-- Task query indexes
+CREATE INDEX IF NOT EXISTS idx_tasks_type ON tasks(type);
+CREATE INDEX IF NOT EXISTS idx_tasks_schedule ON tasks(schedule);
+CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+CREATE INDEX IF NOT EXISTS idx_tasks_scheduled_date ON tasks(scheduled_date);
+CREATE INDEX IF NOT EXISTS idx_tasks_in_trash ON tasks(in_trash);
+CREATE INDEX IF NOT EXISTS idx_tasks_deleted ON tasks(deleted);
+CREATE INDEX IF NOT EXISTS idx_tasks_area_uuid ON tasks(area_uuid);
+CREATE INDEX IF NOT EXISTS idx_tasks_project_uuid ON tasks(project_uuid);
+
+-- Checklist item index
+CREATE INDEX IF NOT EXISTS idx_checklist_items_task_uuid ON checklist_items(task_uuid);
+`
+
+// migration2 adds indexes for better query performance
+const migration2 = `
+CREATE INDEX IF NOT EXISTS idx_change_log_server_index ON change_log(server_index);
+CREATE INDEX IF NOT EXISTS idx_tasks_type ON tasks(type);
+CREATE INDEX IF NOT EXISTS idx_tasks_schedule ON tasks(schedule);
+CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+CREATE INDEX IF NOT EXISTS idx_tasks_scheduled_date ON tasks(scheduled_date);
+CREATE INDEX IF NOT EXISTS idx_tasks_in_trash ON tasks(in_trash);
+CREATE INDEX IF NOT EXISTS idx_tasks_deleted ON tasks(deleted);
+CREATE INDEX IF NOT EXISTS idx_tasks_area_uuid ON tasks(area_uuid);
+CREATE INDEX IF NOT EXISTS idx_tasks_project_uuid ON tasks(project_uuid);
+CREATE INDEX IF NOT EXISTS idx_checklist_items_task_uuid ON checklist_items(task_uuid);
 `
 
 func (s *Syncer) migrate() error {
@@ -113,6 +141,14 @@ func (s *Syncer) migrate() error {
 		return nil
 	}
 
-	// Future: handle incremental migrations here
-	return nil
+	// Incremental migrations
+	if version < 2 {
+		if _, err := s.db.Exec(migration2); err != nil {
+			return err
+		}
+	}
+
+	// Update schema version
+	_, err = s.db.Exec("UPDATE schema_version SET version = ?", schemaVersion)
+	return err
 }

@@ -9,12 +9,12 @@ import (
 
 // State provides read-only access to the synced Things state
 type State struct {
-	db *sql.DB
+	db dbExecutor
 }
 
 // State returns a read-only view of the current aggregated state
 func (s *Syncer) State() *State {
-	return &State{db: s.db}
+	return &State{db: s.rawDB}
 }
 
 // QueryOpts controls filtering for state queries

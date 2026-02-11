@@ -8,9 +8,27 @@ import (
 	things "github.com/nicolai86/things-cloud-sdk"
 )
 
+// Note: database/sql types are used via the dbExecutor interface defined in sync.go
+
 // processItems processes a batch of Things Cloud items into semantic changes.
 // The baseIndex is the starting server index for this batch.
 func (s *Syncer) processItems(items []things.Item, baseIndex int) ([]Change, error) {
+	if len(items) == 0 {
+		return nil, nil
+	}
+
+	// Wrap entire batch in a transaction for massive performance improvement
+	tx, err := s.rawDB.Begin()
+	if err != nil {
+		return nil, fmt.Errorf("beginning transaction: %w", err)
+	}
+	defer tx.Rollback() // No-op if committed
+
+	// Store original db, swap in transaction
+	origDB := s.db
+	s.db = tx
+	defer func() { s.db = origDB }()
+
 	var allChanges []Change
 
 	for i, item := range items {
@@ -31,6 +49,10 @@ func (s *Syncer) processItems(items []things.Item, baseIndex int) ([]Change, err
 		}
 
 		allChanges = append(allChanges, changes...)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("committing transaction: %w", err)
 	}
 
 	return allChanges, nil
