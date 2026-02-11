@@ -234,7 +234,7 @@ type TaskActionItemPayload struct {
 	InstanceCreationStartDate *Timestamp             `json:"icsd,omitempty"`
 	SubtaskBehavior           *int                   `json:"sb,omitempty"`
 	DelegateIDs               *[]string              `json:"dl,omitempty"`
-	LastActionItemID          *string                `json:"lai,omitempty"`
+	LastActionItemID          *Timestamp             `json:"lai,omitempty"`
 	ReminderDate              *Timestamp             `json:"rmd,omitempty"`
 	AlarmTimeOffset           *int                   `json:"ato,omitempty"`
 	ActionRequiredDate        *Timestamp             `json:"acrd,omitempty"`
