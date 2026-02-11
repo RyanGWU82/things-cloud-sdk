@@ -101,6 +101,18 @@ func (s *Syncer) Sync() ([]Change, error) {
 		startIndex = 0
 	}
 
+	// Pre-check: Get latest server index to avoid out-of-bounds requests
+	// A 500 error occurs when start-index > server's current-item-index
+	serverIndex, err := s.getServerIndex()
+	if err != nil {
+		return nil, err
+	}
+
+	// If our cursor is already at or beyond the server's index, nothing to fetch
+	if startIndex >= serverIndex {
+		return nil, nil
+	}
+
 	// Fetch items from server
 	var allChanges []Change
 	hasMore := true
@@ -136,8 +148,9 @@ func (s *Syncer) Sync() ([]Change, error) {
 		}
 		allChanges = append(allChanges, changes...)
 
-		// Move to next batch - startIndex advances by number of items processed
-		startIndex = startIndex + len(items)
+		// Use server's current-item-index as next start position
+		// (not len(items) - items get expanded from nested structure)
+		startIndex = s.history.LatestServerIndex
 		hasMore = more
 	}
 
@@ -233,4 +246,15 @@ func (s *Syncer) scanChangeLog(rows *sql.Rows) ([]Change, error) {
 	}
 
 	return changes, nil
+}
+
+// getServerIndex fetches the latest server index from Things Cloud.
+// This is used to pre-check before fetching items to avoid 500 errors
+// when our stored cursor is ahead of the server's current-item-index.
+func (s *Syncer) getServerIndex() (int, error) {
+	h, err := s.client.History(s.history.ID)
+	if err != nil {
+		return 0, err
+	}
+	return h.LatestServerIndex, nil
 }
