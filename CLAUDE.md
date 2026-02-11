@@ -13,12 +13,15 @@ go build -v ./...          # Build all packages
 go test -v ./...           # Run all tests
 go test -v -run TestName   # Run a single test
 go test -v ./state/memory  # Run tests for a specific package
+go test -v ./sync          # Run sync engine tests
 go generate                # Regenerate stringer methods (itemaction_string.go)
 ```
 
 ## Architecture
 
-All source code lives at the package root (`package things`), with one sub-package (`state/memory`).
+All source code lives at the package root (`package things`), with two sub-packages:
+- `state/memory` — In-memory state aggregation (for testing/simple use)
+- `sync` — Persistent SQLite-backed sync engine with semantic change detection
 
 ### Core Design: Event-Sourced Sync
 
@@ -34,9 +37,31 @@ The SDK models all changes as immutable **Items** (events). A **History** is a s
 - **`account.go`** — AccountService for signup, confirmation, password change, deletion
 - **`app_instance.go`** — Device registration for APNS push notifications
 
-### State Aggregation
+### Sync Engine (`sync/`)
+
+The `sync` package provides a persistent sync engine that:
+- Stores state in SQLite with WAL mode for performance
+- Detects semantic changes (40+ change types: TaskCreated, TaskCompleted, TaskMovedToToday, etc.)
+- Tracks change history for behavioral analysis (reschedule patterns, task age)
+- Uses transaction batching for fast initial syncs (4000+ items in ~2.5 seconds)
+
+Key types:
+- **`Syncer`** — Main sync controller with `Sync()`, `State()`, `ChangesSince()` methods
+- **`State`** — Query interface: `TasksInInbox()`, `TasksInToday()`, `AllTasks()`, etc.
+- **`Change`** — Interface for semantic changes with `ChangeType()`, `EntityUUID()`, `Timestamp()`
+
+### State Aggregation (`state/memory`)
 
 `state/memory` provides an in-memory store that aggregates Items into a queryable hierarchy: Areas → Tasks → Subtasks → CheckListItems. Key queries: `Projects()`, `Headings()`, `TasksByHeading()`, `TasksByArea()`, `Subtasks()`, `CheckListItemsByTask()`. It is **not thread-safe**.
+
+Use `state/memory` for testing or simple scripts. Use `sync` for production apps needing persistence and change tracking.
+
+### CLI Tools (`cmd/`)
+
+See `cmd/README.md` for detailed documentation. Key tools:
+- **`things-cli`** — Full CRUD operations (create, edit, complete, trash tasks)
+- **`thingsync`** — JSON-based sync with workflow views (today, inbox, review, patterns)
+- **`synctest`** — Human-readable sync output for testing
 
 ### Test Infrastructure
 
@@ -45,10 +70,6 @@ Tests use `httptest.Server` with pre-recorded JSON responses in the `tapes/` dir
 ### Code Generation
 
 `types.go` contains `//go:generate stringer -type ItemAction,TaskStatus,TaskSchedule`. Run `go generate` after modifying these enum types. Do not hand-edit `itemaction_string.go`.
-
-### Web UI
-
-`cmd/thingsweb/` contains a Polymer-based web UI with its own build process (see its README). It uses `statik` for static file embedding.
 
 ### Schedule Field (`st`) Mapping
 
