@@ -6,10 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	things "github.com/nicolai86/things-cloud-sdk"
 	"github.com/nicolai86/things-cloud-sdk/sync"
+	"github.com/nicolai86/things-cloud-sdk/syncutil"
 )
 
 func main() {
@@ -76,34 +76,17 @@ func main() {
 
 // dailySummary shows what happened today
 func dailySummary(syncer *sync.Syncer) {
-	today := time.Now().Truncate(24 * time.Hour)
-	changes, _ := syncer.ChangesSince(today)
+	summary := syncutil.BuildDailySummary(syncer)
 
-	if len(changes) == 0 {
+	if summary.Completed == 0 && summary.Created == 0 && summary.MovedToToday == 0 {
 		return
 	}
 
 	fmt.Println("\n--- Today's Activity ---")
-
-	completed := filterChanges(changes, "TaskCompleted")
-	created := filterChanges(changes, "TaskCreated")
-	movedToToday := filterChanges(changes, "TaskMovedToToday")
-	movedAway := filterChangesPrefix(changes, "TaskMovedTo")
-
-	fmt.Printf("  ✓ Completed: %d\n", len(completed))
-	fmt.Printf("  + Created: %d\n", len(created))
-	fmt.Printf("  → Moved to Today: %d\n", len(movedToToday))
-	fmt.Printf("  ↔ Rescheduled: %d\n", len(movedAway)-len(movedToToday))
-
-	// Show completed tasks
-	if len(completed) > 0 {
-		fmt.Println("\n  Completed today:")
-		for _, c := range completed {
-			if tc, ok := c.(sync.TaskCompleted); ok && tc.Task != nil {
-				fmt.Printf("    ✓ %s\n", tc.Task.Title)
-			}
-		}
-	}
+	fmt.Printf("  ✓ Completed: %d\n", summary.Completed)
+	fmt.Printf("  + Created: %d\n", summary.Created)
+	fmt.Printf("  → Moved to Today: %d\n", summary.MovedToToday)
+	fmt.Printf("  ↔ Rescheduled: %d\n", summary.Rescheduled)
 }
 
 // inboxAlert warns if inbox is growing too large
@@ -124,7 +107,7 @@ func inboxAlert(syncer *sync.Syncer) {
 	if len(inbox) > 0 {
 		fmt.Println("\n  Items:")
 		for _, t := range inbox {
-			age := taskAge(t)
+			age := syncutil.TaskAge(t)
 			if age > 0 {
 				fmt.Printf("    - %s (%dd old)\n", t.Title, age)
 			} else {
@@ -150,8 +133,8 @@ func todayWithContext(syncer *sync.Syncer) {
 
 	for _, task := range today {
 		changes, _ := syncer.ChangesForEntity(task.UUID)
-		age := daysSinceCreated(changes)
-		moves := countMoves(changes)
+		age := syncutil.DaysSinceCreated(changes)
+		moves := syncutil.CountMoves(changes)
 
 		// Build context string
 		var context []string
@@ -189,8 +172,8 @@ func reschedulePatterns(syncer *sync.Syncer) {
 
 	for _, task := range inbox {
 		changes, _ := syncer.ChangesForEntity(task.UUID)
-		moves := countMoves(changes)
-		age := daysSinceCreated(changes)
+		moves := syncutil.CountMoves(changes)
+		age := syncutil.DaysSinceCreated(changes)
 
 		if moves >= 3 || age >= 7 {
 			problematic = append(problematic, struct {
@@ -205,8 +188,8 @@ func reschedulePatterns(syncer *sync.Syncer) {
 	today, _ := state.TasksInToday(sync.QueryOpts{})
 	for _, task := range today {
 		changes, _ := syncer.ChangesForEntity(task.UUID)
-		moves := countMoves(changes)
-		age := daysSinceCreated(changes)
+		moves := syncutil.CountMoves(changes)
+		age := syncutil.DaysSinceCreated(changes)
 
 		if moves >= 3 {
 			problematic = append(problematic, struct {
@@ -281,50 +264,4 @@ func printChange(c sync.Change) {
 		}
 	}
 	fmt.Println()
-}
-
-func filterChanges(changes []sync.Change, changeType string) []sync.Change {
-	var result []sync.Change
-	for _, c := range changes {
-		if c.ChangeType() == changeType {
-			result = append(result, c)
-		}
-	}
-	return result
-}
-
-func filterChangesPrefix(changes []sync.Change, prefix string) []sync.Change {
-	var result []sync.Change
-	for _, c := range changes {
-		if strings.HasPrefix(c.ChangeType(), prefix) {
-			result = append(result, c)
-		}
-	}
-	return result
-}
-
-func daysSinceCreated(changes []sync.Change) int {
-	for _, c := range changes {
-		if c.ChangeType() == "TaskCreated" {
-			return int(time.Since(c.Timestamp()).Hours() / 24)
-		}
-	}
-	return 0
-}
-
-func countMoves(changes []sync.Change) int {
-	count := 0
-	for _, c := range changes {
-		if strings.HasPrefix(c.ChangeType(), "TaskMovedTo") {
-			count++
-		}
-	}
-	return count
-}
-
-func taskAge(task *things.Task) int {
-	if task.CreationDate.IsZero() {
-		return 0
-	}
-	return int(time.Since(task.CreationDate).Hours() / 24)
 }

@@ -12,6 +12,7 @@ import (
 
 	things "github.com/nicolai86/things-cloud-sdk"
 	"github.com/nicolai86/things-cloud-sdk/sync"
+	"github.com/nicolai86/things-cloud-sdk/syncutil"
 )
 
 // Output structures for JSON
@@ -95,13 +96,6 @@ type Alert struct {
 	Reason string `json:"reason"`
 }
 
-type DailySummary struct {
-	Completed    int `json:"completed"`
-	Created      int `json:"created"`
-	MovedToToday int `json:"movedToToday"`
-	Rescheduled  int `json:"rescheduled"`
-}
-
 type StateOutput struct {
 	Inbox  []TaskInfo `json:"inbox"`
 	Today  []TaskInfo `json:"today"`
@@ -109,10 +103,10 @@ type StateOutput struct {
 }
 
 type Output struct {
-	Sync    SyncInfo     `json:"sync"`
-	Changes []RichChange `json:"changes"`
-	Summary DailySummary `json:"dailySummary"`
-	State   StateOutput  `json:"state"`
+	Sync    SyncInfo              `json:"sync"`
+	Changes []RichChange          `json:"changes"`
+	Summary syncutil.DailySummary `json:"dailySummary"`
+	State   StateOutput           `json:"state"`
 }
 
 func main() {
@@ -187,7 +181,7 @@ func main() {
 			SyncedAt:     time.Now(),
 		},
 		Changes: buildRichChanges(changes, syncer),
-		Summary: buildDailySummary(syncer),
+		Summary: syncutil.BuildDailySummary(syncer),
 		State:   buildState(syncer),
 	}
 
@@ -484,27 +478,6 @@ func getTaskTags(task *things.Task, syncer *sync.Syncer) []EntityRef {
 	return tags
 }
 
-func buildDailySummary(syncer *sync.Syncer) DailySummary {
-	today := time.Now().Truncate(24 * time.Hour)
-	changes, _ := syncer.ChangesSince(today)
-
-	summary := DailySummary{}
-	for _, c := range changes {
-		switch c.ChangeType() {
-		case "TaskCompleted":
-			summary.Completed++
-		case "TaskCreated":
-			summary.Created++
-		case "TaskMovedToToday":
-			summary.MovedToToday++
-		}
-		if strings.HasPrefix(c.ChangeType(), "TaskMovedTo") && c.ChangeType() != "TaskMovedToToday" {
-			summary.Rescheduled++
-		}
-	}
-	return summary
-}
-
 func buildState(syncer *sync.Syncer) StateOutput {
 	state := syncer.State()
 	output := StateOutput{
@@ -799,10 +772,10 @@ type InboxView struct {
 }
 
 type ReviewView struct {
-	CompletedToday []TaskInfo  `json:"completedToday"`
-	StillInToday   []TaskInfo  `json:"stillInToday"`
-	MovedCount     int         `json:"movedCount"`
-	Summary        DailySummary `json:"summary"`
+	CompletedToday []TaskInfo            `json:"completedToday"`
+	StillInToday   []TaskInfo            `json:"stillInToday"`
+	MovedCount     int                   `json:"movedCount"`
+	Summary        syncutil.DailySummary `json:"summary"`
 }
 
 type PatternView struct {
@@ -919,7 +892,7 @@ func printReviewView(syncer *sync.Syncer) {
 	view := ReviewView{
 		CompletedToday: []TaskInfo{},
 		StillInToday:   []TaskInfo{},
-		Summary:        buildDailySummary(syncer),
+		Summary:        syncutil.BuildDailySummary(syncer),
 	}
 	
 	// Get completed tasks
