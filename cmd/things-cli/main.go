@@ -240,6 +240,7 @@ func newTaskCreatePayload(title string, opts map[string]string) TaskCreatePayloa
 			tp = 1
 		case "heading":
 			tp = 2
+			st = 1 // headings are structural — always "started" (anytime), never inbox
 		}
 	}
 
