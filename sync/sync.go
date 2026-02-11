@@ -74,7 +74,11 @@ func (s *Syncer) Sync() ([]Change, error) {
 		if err != nil {
 			return nil, err
 		}
-		hasMore = more
+
+		// No items returned means we're caught up
+		if len(items) == 0 {
+			break
+		}
 
 		// Process each item
 		changes, err := s.processItems(items, startIndex)
@@ -83,7 +87,9 @@ func (s *Syncer) Sync() ([]Change, error) {
 		}
 		allChanges = append(allChanges, changes...)
 
-		startIndex = s.history.LoadedServerIndex
+		// Move to next batch - startIndex advances by number of items processed
+		startIndex = startIndex + len(items)
+		hasMore = more
 	}
 
 	// Save sync state
