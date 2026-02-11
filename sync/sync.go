@@ -63,33 +63,40 @@ func isRetryableError(err error) bool {
 // Sync fetches new items from Things Cloud, updates local state,
 // and returns the list of changes in order
 func (s *Syncer) Sync() ([]Change, error) {
-	// Ensure we have a history (with retry for transient errors)
-	if s.history == nil {
-		var h *things.History
-		var err error
-		for attempt := 0; attempt < maxRetries; attempt++ {
-			h, err = s.client.OwnHistory()
-			if err == nil {
-				break
-			}
-			if !isRetryableError(err) {
-				return nil, err
-			}
-			time.Sleep(retryBaseWait * time.Duration(1<<attempt))
-		}
-		if err != nil {
-			return nil, err
-		}
-		s.history = h
-	}
-
-	// Get current sync state
+	// Get current sync state first
 	storedHistoryID, startIndex, err := s.getSyncState()
 	if err != nil {
 		return nil, err
 	}
 
-	// If history changed, start fresh
+	// Reuse stored history ID if available (avoids extra /account call)
+	// Things.app does this - it goes straight to /items with the stored history ID
+	if s.history == nil {
+		if storedHistoryID != "" {
+			// Use stored history ID directly - no network call needed
+			s.history = s.client.HistoryWithID(storedHistoryID)
+		} else {
+			// First sync - need to fetch history ID from server
+			var h *things.History
+			var err error
+			for attempt := 0; attempt < maxRetries; attempt++ {
+				h, err = s.client.OwnHistory()
+				if err == nil {
+					break
+				}
+				if !isRetryableError(err) {
+					return nil, err
+				}
+				time.Sleep(retryBaseWait * time.Duration(1<<attempt))
+			}
+			if err != nil {
+				return nil, err
+			}
+			s.history = h
+		}
+	}
+
+	// If history changed (shouldn't happen normally), start fresh
 	if storedHistoryID != "" && storedHistoryID != s.history.ID {
 		startIndex = 0
 	}

@@ -115,6 +115,15 @@ func (c *Client) OwnHistory() (*History, error) {
 	}, nil
 }
 
+// HistoryWithID creates a History object with the given ID without making a network call.
+// Use this when you already know the history ID (e.g., from a previous sync).
+func (c *Client) HistoryWithID(id string) *History {
+	return &History{
+		Client: c,
+		ID:     id,
+	}
+}
+
 // Histories requests all known history keys
 func (c *Client) Histories() ([]*History, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("/version/1/account/%s/own-history-keys", c.EMail), nil)
