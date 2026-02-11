@@ -4,6 +4,7 @@ package sync
 
 import (
 	"database/sql"
+	"time"
 
 	things "github.com/nicolai86/things-cloud-sdk"
 	_ "modernc.org/sqlite"
@@ -97,4 +98,84 @@ func (s *Syncer) Sync() ([]Change, error) {
 func (s *Syncer) LastSyncedIndex() int {
 	_, idx, _ := s.getSyncState()
 	return idx
+}
+
+// ChangesSince returns changes that occurred after the given timestamp
+func (s *Syncer) ChangesSince(timestamp time.Time) ([]Change, error) {
+	rows, err := s.db.Query(`
+		SELECT id, server_index, synced_at, change_type, entity_type, entity_uuid, payload
+		FROM change_log
+		WHERE synced_at > ?
+		ORDER BY id
+	`, timestamp.Unix())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return s.scanChangeLog(rows)
+}
+
+// ChangesSinceIndex returns changes that occurred after the given server index
+func (s *Syncer) ChangesSinceIndex(serverIndex int) ([]Change, error) {
+	rows, err := s.db.Query(`
+		SELECT id, server_index, synced_at, change_type, entity_type, entity_uuid, payload
+		FROM change_log
+		WHERE server_index > ?
+		ORDER BY id
+	`, serverIndex)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return s.scanChangeLog(rows)
+}
+
+// ChangesForEntity returns all changes for a specific entity
+func (s *Syncer) ChangesForEntity(entityUUID string) ([]Change, error) {
+	rows, err := s.db.Query(`
+		SELECT id, server_index, synced_at, change_type, entity_type, entity_uuid, payload
+		FROM change_log
+		WHERE entity_uuid = ?
+		ORDER BY id
+	`, entityUUID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return s.scanChangeLog(rows)
+}
+
+func (s *Syncer) scanChangeLog(rows *sql.Rows) ([]Change, error) {
+	var changes []Change
+
+	for rows.Next() {
+		var id int
+		var serverIndex int
+		var syncedAt int64
+		var changeType, entityType, entityUUID string
+		var payload sql.NullString
+
+		if err := rows.Scan(&id, &serverIndex, &syncedAt, &changeType, &entityType, &entityUUID, &payload); err != nil {
+			return nil, err
+		}
+
+		base := baseChange{
+			serverIndex: serverIndex,
+			timestamp:   time.Unix(syncedAt, 0),
+		}
+
+		// Return UnknownChange with the change type as details
+		// A more complete implementation would reconstruct full typed changes
+		changes = append(changes, UnknownChange{
+			baseChange: base,
+			entityType: entityType,
+			entityUUID: entityUUID,
+			Details:    changeType,
+		})
+	}
+
+	return changes, nil
 }
