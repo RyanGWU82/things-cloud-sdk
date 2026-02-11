@@ -420,6 +420,26 @@ func (u *taskUpdate) Scheduled(sr, tir int64) *taskUpdate {
 	return u
 }
 
+func (u *taskUpdate) Area(uuid string) *taskUpdate {
+	u.fields["ar"] = []string{uuid}
+	return u
+}
+
+func (u *taskUpdate) Project(uuid string) *taskUpdate {
+	u.fields["pr"] = []string{uuid}
+	return u
+}
+
+func (u *taskUpdate) Heading(uuid string) *taskUpdate {
+	u.fields["agr"] = []string{uuid}
+	return u
+}
+
+func (u *taskUpdate) Tags(uuids []string) *taskUpdate {
+	u.fields["tg"] = uuids
+	return u
+}
+
 func (u *taskUpdate) build() map[string]any {
 	return u.fields
 }
@@ -666,7 +686,7 @@ func cmdCreate(history *thingscloud.History, args []string) {
 func cmdEdit(history *thingscloud.History, taskUUID string, args []string) {
 	opts := parseArgs(args)
 	if len(opts) == 0 {
-		fatalf("Usage: things-cli edit <uuid> [--title ...] [--note ...] [--when today|anytime|someday|inbox] [--deadline YYYY-MM-DD] [--scheduled YYYY-MM-DD]")
+		fatalf("Usage: things-cli edit <uuid> [--title ...] [--note ...] [--when today|anytime|someday|inbox] [--deadline YYYY-MM-DD] [--scheduled YYYY-MM-DD] [--area UUID] [--project UUID] [--heading UUID] [--tags UUID,...]")
 	}
 
 	u := newTaskUpdate()
@@ -707,6 +727,18 @@ func cmdEdit(history *thingscloud.History, taskUUID string, args []string) {
 				u.Schedule(1, ts, ts)
 			}
 		}
+	}
+	if v, ok := opts["area"]; ok && v != "" {
+		u.Area(v)
+	}
+	if v, ok := opts["project"]; ok && v != "" {
+		u.Project(v)
+	}
+	if v, ok := opts["heading"]; ok && v != "" {
+		u.Heading(v)
+	}
+	if v, ok := opts["tags"]; ok && v != "" {
+		u.Tags(strings.Split(v, ","))
 	}
 
 	env := writeEnvelope{id: taskUUID, action: 1, kind: "Task6", payload: u.build()}
@@ -857,7 +889,9 @@ Write commands (fast — skip state loading):
          [--tags UUID,...] [--type task|project|heading] [--uuid UUID]
   create-area "Name" [--tags UUID,...] [--uuid UUID]
   create-tag "Name" [--shorthand KEY] [--parent UUID]
-  edit <uuid> [--title ...] [--note ...] [--when ...] [--deadline ...] [--scheduled ...]
+  edit <uuid> [--title ...] [--note ...] [--when ...] [--deadline ...]
+         [--scheduled ...] [--area UUID] [--project UUID]
+         [--heading UUID] [--tags UUID,...]
   complete <uuid>
   trash <uuid>
   purge <uuid>
