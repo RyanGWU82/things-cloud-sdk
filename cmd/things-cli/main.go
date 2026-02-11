@@ -766,12 +766,24 @@ func cmdEdit(history *thingscloud.History, taskUUID string, args []string) {
 	}
 	if v, ok := opts["area"]; ok && v != "" {
 		u.Area(v)
+		// When adding an area, also move out of Inbox (st=0 → st=1)
+		if _, hasWhen := opts["when"]; !hasWhen {
+			u.Schedule(1, 0, 0) // Anytime
+		}
 	}
 	if v, ok := opts["project"]; ok && v != "" {
 		u.Project(v)
+		// When adding a project, also move out of Inbox (st=0 → st=1)
+		if _, hasWhen := opts["when"]; !hasWhen {
+			u.Schedule(1, 0, 0) // Anytime
+		}
 	}
 	if v, ok := opts["heading"]; ok && v != "" {
 		u.Heading(v)
+		// When adding a heading, also move out of Inbox (st=0 → st=1)
+		if _, hasWhen := opts["when"]; !hasWhen {
+			u.Schedule(1, 0, 0) // Anytime
+		}
 	}
 	if v, ok := opts["tags"]; ok && v != "" {
 		u.Tags(strings.Split(v, ","))

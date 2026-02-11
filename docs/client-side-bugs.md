@@ -295,11 +295,47 @@ Tested on account **things36** (2026-02-11):
 - Multiple consecutive syncs — works
 - After external changes in Things.app — detects and fetches delta correctly
 
+## Bug 8: Edit Command Doesn't Set st=1 When Adding Project/Area/Heading (2026-02-12)
+
+### The Problem
+
+The `things-cli edit` command's `--project`, `--area`, and `--heading` flags only set their respective fields without updating `st` (schedule). This caused tasks to remain in Inbox (`st=0`) instead of moving to Anytime (`st=1`) when organizing via edit.
+
+### Root Cause
+
+The edit path was incomplete compared to the create path. When creating a task with `--project`/`--area`/`--heading`, the CLI auto-sets `st=1`. But when editing an existing task to add these, only the parent reference was being updated.
+
+### Evidence
+
+HAR capture (`assets/task_inbox-to-project.har`) shows Things.app sends both fields when moving a task from Inbox to a project:
+
+```json
+{"pr":["BVU8qZ9dNjrdxLvDHPvfDS"],"st":1,"ix":4712,"md":...}
+```
+
+### The Fix
+
+Updated `cmdEdit()` to set `st=1` (Anytime) when `--project`, `--area`, or `--heading` is provided, unless `--when` is explicitly set:
+
+```go
+if v, ok := opts["area"]; ok && v != "" {
+    u.Area(v)
+    if _, hasWhen := opts["when"]; !hasWhen {
+        u.Schedule(1, 0, 0) // Anytime
+    }
+}
+// Same pattern for --project and --heading
+```
+
+### Verification
+
+Tasks moved from Inbox to project/area/heading via `things-cli edit` now correctly appear under their parent instead of remaining in Inbox.
+
 ## Files Changed
 
 | File | Changes |
 |------|---------|
-| `cmd/things-cli/main.go` | Fixed `st` values, fixed `generateUUID()` to use Base58, added `create-area` command, auto-set `st=1` for --project/--heading/--area |
+| `cmd/things-cli/main.go` | Fixed `st` values, fixed `generateUUID()` to use Base58, added `create-area` command, auto-set `st=1` for --project/--heading/--area (create and edit - Bug 8) |
 | `example/main.go` | Base58 UUID encoding, removed `ModificationDate` from creates |
 | `types.go` | Renamed `TaskScheduleToday` → `TaskScheduleInbox`, fixed `Timestamp` marshal/unmarshal |
 | `types_test.go` | Updated marshal test for fractional output |
