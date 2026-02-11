@@ -822,7 +822,7 @@ func cmdCreateArea(history *thingscloud.History, args []string) {
 		"xx": defaultExtension(),
 	}
 
-	env := writeEnvelope{id: areaUUID, action: 0, kind: "Area2", payload: payload}
+	env := writeEnvelope{id: areaUUID, action: 0, kind: "Area3", payload: payload}
 	if err := history.Write(env); err != nil {
 		fatal("create area", err)
 	}
