@@ -191,3 +191,93 @@ func diffStringSlices(old, new []string) (added, removed []string) {
 	}
 	return
 }
+
+// detectAreaChanges compares old and new area state
+func detectAreaChanges(old, new *things.Area, serverIndex int, ts time.Time) []Change {
+	var changes []Change
+	base := baseChange{serverIndex: serverIndex, timestamp: ts}
+
+	if old == nil && new != nil {
+		changes = append(changes, AreaCreated{areaChange: areaChange{baseChange: base, Area: new}})
+		return changes
+	}
+
+	if old != nil && new == nil {
+		changes = append(changes, AreaDeleted{areaChange: areaChange{baseChange: base, Area: old}})
+		return changes
+	}
+
+	if old == nil || new == nil {
+		return changes
+	}
+
+	if old.Title != new.Title {
+		changes = append(changes, AreaRenamed{areaChange: areaChange{baseChange: base, Area: new}, OldTitle: old.Title})
+	}
+
+	return changes
+}
+
+// detectTagChanges compares old and new tag state
+func detectTagChanges(old, new *things.Tag, serverIndex int, ts time.Time) []Change {
+	var changes []Change
+	base := baseChange{serverIndex: serverIndex, timestamp: ts}
+
+	if old == nil && new != nil {
+		changes = append(changes, TagCreated{tagChange: tagChange{baseChange: base, Tag: new}})
+		return changes
+	}
+
+	if old != nil && new == nil {
+		changes = append(changes, TagDeleted{tagChange: tagChange{baseChange: base, Tag: old}})
+		return changes
+	}
+
+	if old == nil || new == nil {
+		return changes
+	}
+
+	if old.Title != new.Title {
+		changes = append(changes, TagRenamed{tagChange: tagChange{baseChange: base, Tag: new}, OldTitle: old.Title})
+	}
+
+	if old.ShortHand != new.ShortHand {
+		changes = append(changes, TagShortcutChanged{tagChange: tagChange{baseChange: base, Tag: new}, OldShortcut: old.ShortHand})
+	}
+
+	return changes
+}
+
+// detectChecklistChanges compares old and new checklist item state
+func detectChecklistChanges(old, new *things.CheckListItem, task *things.Task, serverIndex int, ts time.Time) []Change {
+	var changes []Change
+	base := baseChange{serverIndex: serverIndex, timestamp: ts}
+
+	if old == nil && new != nil {
+		changes = append(changes, ChecklistItemCreated{checklistItemChange: checklistItemChange{baseChange: base, Item: new}, Task: task})
+		return changes
+	}
+
+	if old != nil && new == nil {
+		changes = append(changes, ChecklistItemDeleted{checklistItemChange: checklistItemChange{baseChange: base, Item: old}})
+		return changes
+	}
+
+	if old == nil || new == nil {
+		return changes
+	}
+
+	if old.Title != new.Title {
+		changes = append(changes, ChecklistItemTitleChanged{checklistItemChange: checklistItemChange{baseChange: base, Item: new}, OldTitle: old.Title})
+	}
+
+	if old.Status != new.Status {
+		if new.Status == things.TaskStatusCompleted {
+			changes = append(changes, ChecklistItemCompleted{checklistItemChange: checklistItemChange{baseChange: base, Item: new}, Task: task})
+		} else if old.Status == things.TaskStatusCompleted {
+			changes = append(changes, ChecklistItemUncompleted{checklistItemChange: checklistItemChange{baseChange: base, Item: new}, Task: task})
+		}
+	}
+
+	return changes
+}
