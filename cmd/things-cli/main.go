@@ -289,16 +289,28 @@ func newTaskCreatePayload(title string, opts map[string]string) TaskCreatePayloa
 	// --project
 	if v, ok := opts["project"]; ok && v != "" {
 		pr = []string{v}
+		// Tasks in projects are already triaged — auto-set anytime (st=1) unless --when was explicit
+		if _, hasWhen := opts["when"]; !hasWhen {
+			st = 1
+		}
 	}
 
 	// --heading
 	if v, ok := opts["heading"]; ok && v != "" {
 		agr = []string{v}
+		// Tasks under headings are structural — auto-set anytime (st=1) unless --when was explicit
+		if _, hasWhen := opts["when"]; !hasWhen {
+			st = 1
+		}
 	}
 
 	// --area
 	if v, ok := opts["area"]; ok && v != "" {
 		ar = []string{v}
+		// Tasks in areas are already triaged — auto-set anytime (st=1) unless --when was explicit
+		if _, hasWhen := opts["when"]; !hasWhen {
+			st = 1
+		}
 	}
 
 	// --tags (comma-separated)

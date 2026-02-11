@@ -109,6 +109,8 @@ Key findings from reverse engineering the Things Cloud sync protocol:
 - **UUIDs must be Base58-encoded** (Bitcoin alphabet: `123456789ABCDEFGH...`). Standard UUID strings or other encodings will crash Things.app during sync.
 - **`md` (modification date) must be `null` on creates.** Set timestamps only on updates.
 - **Schedule field (`st`)**: `0` = Inbox, `1` = Anytime/Today (with `sr`/`tir` dates = Today), `2` = Someday/Upcoming (with dates = Upcoming).
+- **Headings (`tp=2`) must have `st=1`** (anytime). `st=0` (inbox) crashes Things.app.
+- **Tasks in projects, headings, or areas** should default to `st=1` (anytime) — they've been triaged out of inbox.
 - **Kind strings**: `Task6`, `Tag4`, `ChecklistItem3`, `Area2`, `Tombstone2`
 
 See `docs/client-side-bugs.md` for the full investigation and crash analysis.

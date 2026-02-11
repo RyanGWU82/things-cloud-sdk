@@ -212,11 +212,38 @@ The "note bug" was a red herring. Notes in single-commit creates work fine — e
 
 Once an item with an invalid UUID is written to the cloud history, **every subsequent sync attempt crashes**. The server stores UUID keys as opaque strings, so it accepts anything. But the client must decode every UUID in the history during sync. One bad UUID poisons the entire history, which is why things9-23 all became permanently unusable.
 
+## Bug 6: Tasks Under Projects/Headings/Areas Default to Inbox
+
+### The Problem
+
+When creating a task with `--project`, `--heading`, or `--area`, the CLI defaulted to `st=0` (inbox). This caused tasks to appear in the Inbox instead of under their parent project/heading/area in Things.app.
+
+### Root Cause
+
+Tasks placed into a project, under a heading, or within an area have already been "triaged" — they shouldn't land in Inbox. The real Things app creates these tasks with `st=1` (anytime/started).
+
+### Fix
+
+Auto-set `st=1` when `--project`, `--heading`, or `--area` is provided, unless `--when` is explicitly set:
+
+```go
+// --project
+if v, ok := opts["project"]; ok && v != "" {
+    pr = []string{v}
+    if _, hasWhen := opts["when"]; !hasWhen {
+        st = 1
+    }
+}
+// Same pattern for --heading and --area
+```
+
+This follows the same principle as the heading fix (Bug 5): structural elements inside projects and areas are never "inbox" items.
+
 ## Files Changed
 
 | File | Changes |
 |------|---------|
-| `cmd/things-cli/main.go` | Fixed `st` values, fixed `generateUUID()` to use Base58, added `create-area` command |
+| `cmd/things-cli/main.go` | Fixed `st` values, fixed `generateUUID()` to use Base58, added `create-area` command, auto-set `st=1` for --project/--heading/--area |
 | `example/main.go` | Base58 UUID encoding, removed `ModificationDate` from creates |
 | `types.go` | Renamed `TaskScheduleToday` → `TaskScheduleInbox`, fixed `Timestamp` marshal/unmarshal |
 | `types_test.go` | Updated marshal test for fractional output |
