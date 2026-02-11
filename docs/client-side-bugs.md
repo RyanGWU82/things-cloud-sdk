@@ -239,6 +239,62 @@ if v, ok := opts["project"]; ok && v != "" {
 
 This follows the same principle as the heading fix (Bug 5): structural elements inside projects and areas are never "inbox" items.
 
+## Bug 7: Incremental Sync Returns 500 Errors (2026-02-11)
+
+### The Problem
+
+The persistent sync engine (`sync` package) was getting 500 errors on incremental syncs when fetching items from Things Cloud. The error occurred on the second or third batch of items, not the first.
+
+### Root Cause
+
+The server returns 500 when `start-index > current-item-index` (out of bounds request). The SDK was calculating the next page's start index incorrectly.
+
+Items in the `/items` response are nested maps:
+```json
+{
+  "current-item-index": 201,
+  "items": [
+    {"uuid1": {...}, "uuid2": {...}},  // 1 server item, 2 entities
+    {"uuid3": {...}},                   // 1 server item, 1 entity
+    ...
+  ]
+}
+```
+
+During parsing, these nested maps get *expanded* — a single server item with multiple entity keys becomes multiple `Item` structs. The SDK was using `len(expandedItems)` to calculate the next start index, but the server's `current-item-index` advances by the *outer array* count.
+
+**Example**: Request `start-index=177` returns 24 server items that expand to 32 entities, with `current-item-index=201`.
+- Wrong: `177 + 32 = 209` → server returns 500 (209 > 201)
+- Right: use server's `current-item-index` directly → 201
+
+### The Fix
+
+Two changes to `sync/sync.go`:
+
+1. **Pre-check**: Call `GET /history/{id}` to get `latest-server-index` before fetching items. Skip if stored cursor >= server index (nothing new to fetch).
+
+2. **Pagination**: Use `s.history.LatestServerIndex` (populated from response's `current-item-index`) instead of calculating `startIndex + len(items)`.
+
+```go
+// Before (wrong):
+startIndex = startIndex + len(items)  // items is expanded count
+
+// After (correct):
+startIndex = s.history.LatestServerIndex  // server's actual index
+```
+
+### Additional Discovery
+
+The `/items` endpoint doesn't require authentication — you can curl it directly. Things.app also caches the history ID locally and skips the `/account/{email}` call on incremental syncs. The SDK now matches this pattern.
+
+### Verification
+
+Tested on account **things36** (2026-02-11):
+- Fresh sync from index 0 — works
+- Incremental sync — works (no 500)
+- Multiple consecutive syncs — works
+- After external changes in Things.app — detects and fetches delta correctly
+
 ## Files Changed
 
 | File | Changes |
@@ -252,3 +308,5 @@ This follows the same principle as the heading fix (Bug 5): structural elements 
 | `notes.go` | Bounds clamping in `ApplyPatches()` |
 | `notes_test.go` | Regression tests for edge cases |
 | `state/memory/memory_test.go` | Regression tests for tombstone and orphan cases |
+| `sync/sync.go` | Pre-check server index, fix pagination to use server's `current-item-index`, added `getServerIndex()` |
+| `histories.go` | Added `HistoryWithID()` helper for cached history ID |
