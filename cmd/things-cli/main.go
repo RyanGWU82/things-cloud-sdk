@@ -663,8 +663,30 @@ func containsStr(slice []string, s string) bool {
 // Write commands
 // ---------------------------------------------------------------------------
 
+func cmdWriteChecklistItems(history *thingscloud.History, taskUUID string, items []string) {
+	now := nowTs()
+	for i, title := range items {
+		itemUUID := generateUUID()
+		payload := ChecklistItemCreatePayload{
+			Cd: now,
+			Md: nil,
+			Tt: strings.TrimSpace(title),
+			Ss: 0,
+			Sp: nil,
+			Ix: i,
+			Ts: []string{taskUUID},
+			Lt: false,
+			Xx: defaultExtension(),
+		}
+		env := writeEnvelope{id: itemUUID, action: 0, kind: "ChecklistItem3", payload: payload}
+		if err := history.Write(env); err != nil {
+			fatal("create checklist item", err)
+		}
+	}
+}
+
 func cmdCreate(history *thingscloud.History, args []string) {
-	requireArgs(args, 1, "things-cli create \"Title\" [--note ...] [--when today|anytime|someday|inbox] [--deadline YYYY-MM-DD] [--scheduled YYYY-MM-DD] [--project UUID] [--heading UUID] [--area UUID] [--tags UUID,...] [--type task|project|heading] [--uuid UUID]")
+	requireArgs(args, 1, "things-cli create \"Title\" [--note ...] [--when today|anytime|someday|inbox] [--deadline YYYY-MM-DD] [--scheduled YYYY-MM-DD] [--project UUID] [--heading UUID] [--area UUID] [--tags UUID,...] [--type task|project|heading] [--uuid UUID] [--checklist \"Item 1,Item 2,...\"]")
 
 	title := args[0]
 	opts := parseArgs(args[1:])
@@ -680,7 +702,21 @@ func cmdCreate(history *thingscloud.History, args []string) {
 		fatal("create task", err)
 	}
 
+	// Write checklist items (if any) after the task
+	if v, ok := opts["checklist"]; ok && v != "" {
+		cmdWriteChecklistItems(history, taskUUID, strings.Split(v, ","))
+	}
+
 	outputJSON(map[string]string{"status": "created", "uuid": taskUUID, "title": title})
+}
+
+func cmdAddChecklist(history *thingscloud.History, taskUUID string, args []string) {
+	requireArgs(args, 1, `things-cli add-checklist <task-uuid> "Item 1,Item 2,Item 3"`)
+
+	items := strings.Split(args[0], ",")
+	cmdWriteChecklistItems(history, taskUUID, items)
+
+	outputJSON(map[string]string{"status": "checklist-added", "uuid": taskUUID, "items": fmt.Sprintf("%d", len(items))})
 }
 
 func cmdEdit(history *thingscloud.History, taskUUID string, args []string) {
@@ -887,8 +923,10 @@ Write commands (fast — skip state loading):
          [--deadline YYYY-MM-DD] [--scheduled YYYY-MM-DD]
          [--project UUID] [--heading UUID] [--area UUID]
          [--tags UUID,...] [--type task|project|heading] [--uuid UUID]
+         [--checklist "Item 1,Item 2,..."]
   create-area "Name" [--tags UUID,...] [--uuid UUID]
   create-tag "Name" [--shorthand KEY] [--parent UUID]
+  add-checklist <task-uuid> "Item 1,Item 2,Item 3"
   edit <uuid> [--title ...] [--note ...] [--when ...] [--deadline ...]
          [--scheduled ...] [--area UUID] [--project UUID]
          [--heading UUID] [--tags UUID,...]
@@ -928,6 +966,9 @@ func main() {
 		cmdCreateArea(ctx.history, os.Args[2:])
 	case "create-tag":
 		cmdCreateTag(ctx.history, os.Args[2:])
+	case "add-checklist":
+		requireArgs(os.Args[2:], 2, `things-cli add-checklist <task-uuid> "Item 1,Item 2,Item 3"`)
+		cmdAddChecklist(ctx.history, os.Args[2], os.Args[3:])
 	case "edit":
 		requireArgs(os.Args[2:], 1, "things-cli edit <uuid> [--title ...] [--note ...]")
 		cmdEdit(ctx.history, os.Args[2], os.Args[3:])
