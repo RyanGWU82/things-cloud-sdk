@@ -98,12 +98,18 @@ func (c *Client) do(req *http.Request) (*http.Response, error) {
 		req.URL = u
 	}
 
+	// Common headers matching Things.app
 	req.Header.Set("Host", "cloud.culturedcode.com")
 	req.Header.Set("User-Agent", ThingsUserAgent)
-	req.Header.Set("Content-Type", "application/json; charset=UTF-8")
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Encoding", "UTF8")
-	req.Header.Set("Accept-Language", "en-us")
+	req.Header.Set("Accept-Charset", "UTF-8")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+
+	// Only set Content-Type/Encoding for requests with body (POST, PUT, etc.)
+	if req.Method != "GET" && req.Method != "HEAD" && req.Method != "DELETE" {
+		req.Header.Set("Content-Type", "application/json; charset=UTF-8")
+		req.Header.Set("Content-Encoding", "UTF-8")
+	}
 
 	ciJSON, err := json.Marshal(c.ClientInfo)
 	if err != nil {
