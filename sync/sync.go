@@ -4,10 +4,16 @@ package sync
 
 import (
 	"database/sql"
+	"strings"
 	"time"
 
 	things "github.com/nicolai86/things-cloud-sdk"
 	_ "modernc.org/sqlite"
+)
+
+const (
+	maxRetries    = 3
+	retryBaseWait = 2 * time.Second
 )
 
 // Syncer manages persistent sync with Things Cloud
@@ -42,12 +48,35 @@ func (s *Syncer) Close() error {
 	return s.db.Close()
 }
 
+// isRetryableError returns true if the error is a temporary server error worth retrying.
+func isRetryableError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	return strings.Contains(errStr, "500") ||
+		strings.Contains(errStr, "502") ||
+		strings.Contains(errStr, "503") ||
+		strings.Contains(errStr, "504")
+}
+
 // Sync fetches new items from Things Cloud, updates local state,
 // and returns the list of changes in order
 func (s *Syncer) Sync() ([]Change, error) {
-	// Ensure we have a history
+	// Ensure we have a history (with retry for transient errors)
 	if s.history == nil {
-		h, err := s.client.OwnHistory()
+		var h *things.History
+		var err error
+		for attempt := 0; attempt < maxRetries; attempt++ {
+			h, err = s.client.OwnHistory()
+			if err == nil {
+				break
+			}
+			if !isRetryableError(err) {
+				return nil, err
+			}
+			time.Sleep(retryBaseWait * time.Duration(1<<attempt))
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -70,9 +99,22 @@ func (s *Syncer) Sync() ([]Change, error) {
 	hasMore := true
 
 	for hasMore {
-		items, more, err := s.history.Items(things.ItemsOptions{StartIndex: startIndex})
-		if err != nil {
-			return nil, err
+		// Fetch with retry for transient errors
+		var items []things.Item
+		var more bool
+		var fetchErr error
+		for attempt := 0; attempt < maxRetries; attempt++ {
+			items, more, fetchErr = s.history.Items(things.ItemsOptions{StartIndex: startIndex})
+			if fetchErr == nil {
+				break
+			}
+			if !isRetryableError(fetchErr) {
+				return nil, fetchErr
+			}
+			time.Sleep(retryBaseWait * time.Duration(1<<attempt))
+		}
+		if fetchErr != nil {
+			return nil, fetchErr
 		}
 
 		// No items returned means we're caught up
