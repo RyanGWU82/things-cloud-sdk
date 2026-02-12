@@ -28,7 +28,7 @@ All source code lives at the package root (`package things`), with two sub-packa
 The SDK models all changes as immutable **Items** (events). A **History** is a sync stream identified by a UUID. The client pushes/pulls Items through Histories to stay in sync with the Things Cloud server.
 
 - **`client.go`** — HTTP client with `ClientInfo` header and configurable `Debug` logging, base endpoint `https://cloud.culturedcode.com`
-- **`histories.go`** — History CRUD and sync operations (list, create, delete, read/write items with ancestor indices)
+- **`histories.go`** — History CRUD and sync operations (list, create, delete, read/write items with ancestor indices). The `Write()` method accepts multiple items for batching.
 - **`items.go`** — Item construction: every mutation (create/modify/delete) on a Task, Area, Tag, CheckListItem, or Tombstone produces an Item
 - **`types.go`** — Domain types: `Task` (with `TaskType` enum: Task/Project/Heading), `Area`, `Tag`, `CheckListItem`, `Tombstone`, plus custom JSON types (`Timestamp`, `Boolean`)
 - **`notes.go`** — Structured `Note` type with full-text and delta patch support (`ApplyPatches`)
@@ -56,10 +56,18 @@ Key types:
 
 Use `state/memory` for testing or simple scripts. Use `sync` for production apps needing persistence and change tracking.
 
+### Shared Utilities (`syncutil/`)
+
+The `syncutil` package provides shared utilities for sync-based CLI tools:
+- `FilterChanges()`, `FilterChangesPrefix()` — Filter changes by type
+- `DaysSinceCreated()`, `CountMoves()`, `TaskAge()` — Task analytics
+- `BuildDailySummary()` — Daily activity stats (completed, created, moved)
+
 ### CLI Tools (`cmd/`)
 
 See `cmd/README.md` for detailed documentation. Key tools:
 - **`things-cli`** — Full CRUD operations (create, edit, complete, trash tasks)
+  - Supports `batch` command for multiple operations in one HTTP request
 - **`thingsync`** — JSON-based sync with workflow views (today, inbox, review, patterns)
 - **`synctest`** — Human-readable sync output for testing
 

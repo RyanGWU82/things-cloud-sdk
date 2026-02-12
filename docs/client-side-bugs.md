@@ -335,7 +335,8 @@ Tasks moved from Inbox to project/area/heading via `things-cli edit` now correct
 
 | File | Changes |
 |------|---------|
-| `cmd/things-cli/main.go` | Fixed `st` values, fixed `generateUUID()` to use Base58, added `create-area` command, auto-set `st=1` for --project/--heading/--area (create and edit - Bug 8) |
+| `cmd/things-cli/main.go` | Fixed `st` values, fixed `generateUUID()` to use Base58, added `create-area` command, auto-set `st=1` for --project/--heading/--area (create and edit - Bug 8), added `batch` command for multiple ops in one HTTP request |
+| `syncutil/syncutil.go` | New package with shared utilities for sync-based CLI tools |
 | `example/main.go` | Base58 UUID encoding, removed `ModificationDate` from creates |
 | `types.go` | Renamed `TaskScheduleToday` → `TaskScheduleInbox`, fixed `Timestamp` marshal/unmarshal |
 | `types_test.go` | Updated marshal test for fractional output |
