@@ -917,6 +917,267 @@ func cmdCreateTag(history *thingscloud.History, args []string) {
 }
 
 // ---------------------------------------------------------------------------
+// Batch command
+// ---------------------------------------------------------------------------
+
+// BatchOp represents a single operation in a batch request.
+type BatchOp struct {
+	Cmd      string            `json:"cmd"`
+	UUID     string            `json:"uuid,omitempty"`
+	Title    string            `json:"title,omitempty"`
+	Note     string            `json:"note,omitempty"`
+	When     string            `json:"when,omitempty"`
+	Deadline string            `json:"deadline,omitempty"`
+	Project  string            `json:"project,omitempty"`
+	Area     string            `json:"area,omitempty"`
+	Heading  string            `json:"heading,omitempty"`
+	Tags     []string          `json:"tags,omitempty"`
+	Type     string            `json:"type,omitempty"`
+	Extra    map[string]string `json:"extra,omitempty"` // for any additional opts
+}
+
+func cmdBatch(history *thingscloud.History) {
+	// Read JSON from stdin
+	var ops []BatchOp
+	if err := json.NewDecoder(os.Stdin).Decode(&ops); err != nil {
+		fatalf("parsing batch JSON: %v", err)
+	}
+
+	if len(ops) == 0 {
+		fatalf("batch: no operations provided")
+	}
+
+	// Build all envelopes
+	var envelopes []thingscloud.Identifiable
+	var results []map[string]string
+
+	for i, op := range ops {
+		env, result, err := buildBatchEnvelope(op)
+		if err != nil {
+			fatalf("batch op %d (%s): %v", i, op.Cmd, err)
+		}
+		envelopes = append(envelopes, env)
+		results = append(results, result)
+	}
+
+	// Send all in one request
+	if err := history.Write(envelopes...); err != nil {
+		fatal("batch write", err)
+	}
+
+	outputJSON(map[string]any{
+		"status":     "ok",
+		"operations": len(envelopes),
+		"results":    results,
+	})
+}
+
+func buildBatchEnvelope(op BatchOp) (thingscloud.Identifiable, map[string]string, error) {
+	switch op.Cmd {
+	case "create":
+		return buildBatchCreate(op)
+	case "complete":
+		return buildBatchComplete(op)
+	case "trash":
+		return buildBatchTrash(op)
+	case "purge":
+		return buildBatchPurge(op)
+	case "move-to-today":
+		return buildBatchMoveToToday(op)
+	case "move-to-project":
+		return buildBatchMoveToProject(op)
+	case "move-to-area":
+		return buildBatchMoveToArea(op)
+	case "edit":
+		return buildBatchEdit(op)
+	default:
+		return nil, nil, fmt.Errorf("unknown command: %s", op.Cmd)
+	}
+}
+
+func buildBatchCreate(op BatchOp) (thingscloud.Identifiable, map[string]string, error) {
+	if op.Title == "" {
+		return nil, nil, fmt.Errorf("create requires title")
+	}
+
+	taskUUID := op.UUID
+	if taskUUID == "" {
+		taskUUID = generateUUID()
+	}
+
+	// Convert BatchOp to opts map for newTaskCreatePayload
+	opts := make(map[string]string)
+	if op.Note != "" {
+		opts["note"] = op.Note
+	}
+	if op.When != "" {
+		opts["when"] = op.When
+	}
+	if op.Deadline != "" {
+		opts["deadline"] = op.Deadline
+	}
+	if op.Project != "" {
+		opts["project"] = op.Project
+	}
+	if op.Area != "" {
+		opts["area"] = op.Area
+	}
+	if op.Heading != "" {
+		opts["heading"] = op.Heading
+	}
+	if len(op.Tags) > 0 {
+		opts["tags"] = strings.Join(op.Tags, ",")
+	}
+	if op.Type != "" {
+		opts["type"] = op.Type
+	}
+	for k, v := range op.Extra {
+		opts[k] = v
+	}
+
+	payload := newTaskCreatePayload(op.Title, opts)
+	env := writeEnvelope{id: taskUUID, action: 0, kind: "Task6", payload: payload}
+
+	return env, map[string]string{"cmd": "create", "uuid": taskUUID, "title": op.Title}, nil
+}
+
+func buildBatchComplete(op BatchOp) (thingscloud.Identifiable, map[string]string, error) {
+	if op.UUID == "" {
+		return nil, nil, fmt.Errorf("complete requires uuid")
+	}
+
+	ts := nowTs()
+	u := newTaskUpdate().Status(3).StopDate(ts)
+	env := writeEnvelope{id: op.UUID, action: 1, kind: "Task6", payload: u.build()}
+
+	return env, map[string]string{"cmd": "complete", "uuid": op.UUID}, nil
+}
+
+func buildBatchTrash(op BatchOp) (thingscloud.Identifiable, map[string]string, error) {
+	if op.UUID == "" {
+		return nil, nil, fmt.Errorf("trash requires uuid")
+	}
+
+	u := newTaskUpdate().Trash(true)
+	env := writeEnvelope{id: op.UUID, action: 1, kind: "Task6", payload: u.build()}
+
+	return env, map[string]string{"cmd": "trash", "uuid": op.UUID}, nil
+}
+
+func buildBatchPurge(op BatchOp) (thingscloud.Identifiable, map[string]string, error) {
+	if op.UUID == "" {
+		return nil, nil, fmt.Errorf("purge requires uuid")
+	}
+
+	tombstoneUUID := generateUUID()
+	payload := map[string]any{
+		"dloid": op.UUID,
+		"dld":   nowTs(),
+	}
+	env := writeEnvelope{id: tombstoneUUID, action: 0, kind: "Tombstone2", payload: payload}
+
+	return env, map[string]string{"cmd": "purge", "uuid": op.UUID, "tombstone": tombstoneUUID}, nil
+}
+
+func buildBatchMoveToToday(op BatchOp) (thingscloud.Identifiable, map[string]string, error) {
+	if op.UUID == "" {
+		return nil, nil, fmt.Errorf("move-to-today requires uuid")
+	}
+
+	today := todayMidnightUTC()
+	u := newTaskUpdate().Schedule(1, today, today)
+	env := writeEnvelope{id: op.UUID, action: 1, kind: "Task6", payload: u.build()}
+
+	return env, map[string]string{"cmd": "move-to-today", "uuid": op.UUID}, nil
+}
+
+func buildBatchMoveToProject(op BatchOp) (thingscloud.Identifiable, map[string]string, error) {
+	if op.UUID == "" {
+		return nil, nil, fmt.Errorf("move-to-project requires uuid")
+	}
+	if op.Project == "" {
+		return nil, nil, fmt.Errorf("move-to-project requires project")
+	}
+
+	u := newTaskUpdate().Project(op.Project).Schedule(1, 0, 0)
+	env := writeEnvelope{id: op.UUID, action: 1, kind: "Task6", payload: u.build()}
+
+	return env, map[string]string{"cmd": "move-to-project", "uuid": op.UUID, "project": op.Project}, nil
+}
+
+func buildBatchMoveToArea(op BatchOp) (thingscloud.Identifiable, map[string]string, error) {
+	if op.UUID == "" {
+		return nil, nil, fmt.Errorf("move-to-area requires uuid")
+	}
+	if op.Area == "" {
+		return nil, nil, fmt.Errorf("move-to-area requires area")
+	}
+
+	u := newTaskUpdate().Area(op.Area).Schedule(1, 0, 0)
+	env := writeEnvelope{id: op.UUID, action: 1, kind: "Task6", payload: u.build()}
+
+	return env, map[string]string{"cmd": "move-to-area", "uuid": op.UUID, "area": op.Area}, nil
+}
+
+func buildBatchEdit(op BatchOp) (thingscloud.Identifiable, map[string]string, error) {
+	if op.UUID == "" {
+		return nil, nil, fmt.Errorf("edit requires uuid")
+	}
+
+	u := newTaskUpdate()
+
+	if op.Title != "" {
+		u.Title(op.Title)
+	}
+	if op.Note != "" {
+		u.Note(op.Note)
+	}
+	if op.When != "" {
+		switch op.When {
+		case "today":
+			today := todayMidnightUTC()
+			u.Schedule(1, today, today)
+		case "anytime":
+			u.Schedule(1, nil, nil)
+		case "someday":
+			u.Schedule(2, nil, nil)
+		case "inbox":
+			u.Schedule(0, nil, nil)
+		}
+	}
+	if op.Deadline != "" {
+		if t := parseDate(op.Deadline); t != nil {
+			u.Deadline(t.Unix())
+		}
+	}
+	if op.Project != "" {
+		u.Project(op.Project)
+		if op.When == "" {
+			u.Schedule(1, 0, 0)
+		}
+	}
+	if op.Area != "" {
+		u.Area(op.Area)
+		if op.When == "" {
+			u.Schedule(1, 0, 0)
+		}
+	}
+	if op.Heading != "" {
+		u.Heading(op.Heading)
+		if op.When == "" {
+			u.Schedule(1, 0, 0)
+		}
+	}
+	if len(op.Tags) > 0 {
+		u.Tags(op.Tags)
+	}
+
+	env := writeEnvelope{id: op.UUID, action: 1, kind: "Task6", payload: u.build()}
+
+	return env, map[string]string{"cmd": "edit", "uuid": op.UUID}, nil
+}
+
+// ---------------------------------------------------------------------------
 // main() dispatch and usage
 // ---------------------------------------------------------------------------
 
@@ -945,7 +1206,23 @@ Write commands (fast — skip state loading):
   complete <uuid>
   trash <uuid>
   purge <uuid>
-  move-to-today <uuid>`)
+  move-to-today <uuid>
+
+Batch command (reads JSON from stdin, sends all ops in one HTTP request):
+  batch
+
+  Example: echo '[{"cmd":"complete","uuid":"abc"},{"cmd":"trash","uuid":"def"}]' | things-cli batch
+
+  Supported operations:
+    {"cmd": "create", "title": "...", "note": "...", "when": "today|anytime|someday|inbox",
+     "project": "uuid", "area": "uuid", "heading": "uuid", "tags": ["uuid",...]}
+    {"cmd": "complete", "uuid": "..."}
+    {"cmd": "trash", "uuid": "..."}
+    {"cmd": "purge", "uuid": "..."}
+    {"cmd": "move-to-today", "uuid": "..."}
+    {"cmd": "move-to-project", "uuid": "...", "project": "..."}
+    {"cmd": "move-to-area", "uuid": "...", "area": "..."}
+    {"cmd": "edit", "uuid": "...", "title": "...", "note": "...", ...}`)
 }
 
 func main() {
@@ -996,6 +1273,8 @@ func main() {
 	case "move-to-today":
 		requireArgs(os.Args[2:], 1, "things-cli move-to-today <uuid>")
 		cmdMoveToToday(ctx.history, os.Args[2])
+	case "batch":
+		cmdBatch(ctx.history)
 
 	default:
 		fatalf("unknown command: %s", cmd)

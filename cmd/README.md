@@ -30,6 +30,17 @@ things-cli trash <uuid>
 things-cli purge <uuid>
 things-cli move-to-today <uuid>
 
+# Batch operations (all in one HTTP request - much faster!)
+echo '[
+  {"cmd": "create", "title": "Task 1"},
+  {"cmd": "create", "title": "Task 2"},
+  {"cmd": "complete", "uuid": "abc123"},
+  {"cmd": "move-to-project", "uuid": "def456", "project": "proj-uuid"}
+]' | things-cli batch
+
+# Batch commands: create, complete, trash, purge, move-to-today,
+#                 move-to-project, move-to-area, edit
+
 # Create options:
 #   --note "text"           Add a note
 #   --when today|anytime|someday|inbox
