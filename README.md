@@ -12,7 +12,7 @@ can enhance your Things experience on iOS and Mac.
 - **Verify Credentials** — validate account access
 - **Account Management** — signup, confirmation, password change, deletion
 - **History Management** — list, create, delete, sync histories
-- **Item Read/Write** — full event-sourced CRUD for tasks, areas, tags, checklist items
+- **Item Read/Write** — full event-sourced CRUD for tasks, areas, tags, checklist items (supports batching multiple items in one request)
 - **Task Types** — tasks, projects, and headings (action groups within projects)
 - **Structured Notes** — full-text and delta patch support for task notes
 - **Recurring Tasks** — neverending, end on date, end after N times
@@ -58,6 +58,9 @@ things-cli complete <uuid>
 things-cli trash <uuid>
 things-cli purge <uuid>
 things-cli move-to-today <uuid>
+
+# Batch (all operations in one HTTP request - much faster!)
+echo '[{"cmd":"complete","uuid":"abc"},{"cmd":"trash","uuid":"def"}]' | things-cli batch
 ```
 
 ### Examples
@@ -72,6 +75,14 @@ things-cli create "First Task" --project BXmAcvS6yK1eDhW31MuZrL --when today --n
 # Create an area and assign tasks
 things-cli create-area "Work"
 things-cli create "Review PR" --area <area-uuid> --when today --deadline 2026-02-15
+
+# Batch operations (50 ops in ~2 sec instead of ~2-3 min)
+echo '[
+  {"cmd": "create", "title": "Task 1"},
+  {"cmd": "create", "title": "Task 2"},
+  {"cmd": "move-to-project", "uuid": "abc123", "project": "proj-uuid"},
+  {"cmd": "complete", "uuid": "def456"}
+]' | things-cli batch
 ```
 
 ## SDK Usage
