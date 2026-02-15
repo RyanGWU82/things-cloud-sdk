@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	thingscloud "github.com/nicolai86/things-cloud-sdk"
-	memory "github.com/nicolai86/things-cloud-sdk/state/memory"
+	thingscloud "github.com/arthursoares/things-cloud-sdk"
+	memory "github.com/arthursoares/things-cloud-sdk/state/memory"
 )
 
 func main() {

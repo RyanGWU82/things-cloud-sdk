@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	things "github.com/nicolai86/things-cloud-sdk"
+	things "github.com/arthursoares/things-cloud-sdk"
 )
 
 func stringVal(str string) *string {

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	thingscloud "github.com/nicolai86/things-cloud-sdk"
+	thingscloud "github.com/arthursoares/things-cloud-sdk"
 )
 
 func main() {

@@ -3,7 +3,7 @@ package sync
 import (
 	"time"
 
-	things "github.com/nicolai86/things-cloud-sdk"
+	things "github.com/arthursoares/things-cloud-sdk"
 )
 
 // Change represents a semantic change event from sync

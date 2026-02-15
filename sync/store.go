@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"time"
 
-	things "github.com/nicolai86/things-cloud-sdk"
+	things "github.com/arthursoares/things-cloud-sdk"
 )
 
 // getTask retrieves a task by UUID from the database.

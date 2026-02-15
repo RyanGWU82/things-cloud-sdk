@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	things "github.com/nicolai86/things-cloud-sdk"
-	"github.com/nicolai86/things-cloud-sdk/sync"
-	"github.com/nicolai86/things-cloud-sdk/syncutil"
+	things "github.com/arthursoares/things-cloud-sdk"
+	"github.com/arthursoares/things-cloud-sdk/sync"
+	"github.com/arthursoares/things-cloud-sdk/syncutil"
 )
 
 // Output structures for JSON

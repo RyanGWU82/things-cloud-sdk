@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	things "github.com/nicolai86/things-cloud-sdk"
-	"github.com/nicolai86/things-cloud-sdk/sync"
+	things "github.com/arthursoares/things-cloud-sdk"
+	"github.com/arthursoares/things-cloud-sdk/sync"
 )
 
 // FilterChanges returns changes matching the exact change type.

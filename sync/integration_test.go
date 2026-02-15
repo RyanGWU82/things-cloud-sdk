@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	things "github.com/nicolai86/things-cloud-sdk"
+	things "github.com/arthursoares/things-cloud-sdk"
 )
 
 func TestIntegration(t *testing.T) {

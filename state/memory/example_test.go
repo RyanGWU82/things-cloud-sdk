@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	things "github.com/nicolai86/things-cloud-sdk"
+	things "github.com/arthursoares/things-cloud-sdk"
 )
 
 func ExampleState_Update() {
