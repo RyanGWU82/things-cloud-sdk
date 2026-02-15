@@ -22,3 +22,6 @@
 *.env
 /tmp/
 .env
+
+# HAR files (may contain credentials)
+*.har
