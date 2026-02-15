@@ -7,6 +7,94 @@ can enhance your Things experience on iOS and Mac.
 
 [![Go](https://github.com/arthursoares/things-cloud-sdk/actions/workflows/go.yml/badge.svg)](https://github.com/arthursoares/things-cloud-sdk/actions/workflows/go.yml)
 
+## Getting Started
+
+### Installation
+
+```bash
+go get github.com/arthursoares/things-cloud-sdk
+```
+
+### Quick Start
+
+**1. Set up your credentials:**
+
+```bash
+export THINGS_USERNAME='your@email.com'
+export THINGS_PASSWORD='yourpassword'
+```
+
+**2. Create a simple Go program:**
+
+```go
+package main
+
+import (
+    "fmt"
+    "os"
+    things "github.com/arthursoares/things-cloud-sdk"
+)
+
+func main() {
+    client := things.New(
+        things.APIEndpoint,
+        os.Getenv("THINGS_USERNAME"),
+        os.Getenv("THINGS_PASSWORD"),
+    )
+
+    // Verify credentials
+    resp, err := client.Verify()
+    if err != nil {
+        panic(err)
+    }
+    fmt.Printf("✓ Connected: %s\n", resp.Email)
+
+    // Get or create a history
+    histories, _ := client.Histories()
+    var historyID string
+    if len(histories) > 0 {
+        historyID = histories[0].ID
+    } else {
+        hist, _ := client.CreateHistory()
+        historyID = hist.ID
+    }
+
+    // Create a task
+    task := things.Task{
+        UUID:  things.GenerateUUID(),
+        Title: things.String("My first task from the SDK!"),
+    }
+
+    items := []things.Item{things.NewCreateTaskItem(task)}
+    client.Write(historyID, items, -1)
+    fmt.Printf("✓ Created task: %s\n", *task.Title)
+}
+```
+
+**3. Run it:**
+
+```bash
+go run main.go
+```
+
+### CLI Quick Start
+
+Install and use the command-line tool:
+
+```bash
+# Install
+go install github.com/arthursoares/things-cloud-sdk/cmd/things-cli@latest
+
+# Create a task
+things-cli create "Buy groceries" --when today
+
+# List today's tasks
+things-cli list --today
+
+# Complete a task
+things-cli complete <task-uuid>
+```
+
 ## Features
 
 - **Verify Credentials** — validate account access
@@ -85,7 +173,9 @@ echo '[
 ]' | things-cli batch
 ```
 
-## SDK Usage
+## Advanced SDK Usage
+
+### Working with Histories and Items
 
 ```go
 package main
@@ -93,26 +183,55 @@ package main
 import (
     "fmt"
     "os"
-
-    thingscloud "github.com/nicolai86/things-cloud-sdk"
+    things "github.com/arthursoares/things-cloud-sdk"
 )
 
 func main() {
-    c := thingscloud.New(
-        thingscloud.APIEndpoint,
+    client := things.New(
+        things.APIEndpoint,
         os.Getenv("THINGS_USERNAME"),
         os.Getenv("THINGS_PASSWORD"),
     )
 
-    resp, err := c.Verify()
-    if err != nil {
-        panic(err)
+    // Create a history
+    history, _ := client.CreateHistory()
+
+    // Create a project with tasks
+    project := things.Task{
+        UUID:     things.GenerateUUID(),
+        Title:    things.String("My Project"),
+        TaskType: things.TaskTypePtr(things.TaskTypeProject),
+        Status:   things.Status(things.TaskStatusPending),
+        Schedule: things.Schedule(things.TaskScheduleAnytime),
     }
-    fmt.Printf("Account: %s (status: %s)\n", resp.Email, resp.Status)
+
+    task1 := things.Task{
+        UUID:      things.GenerateUUID(),
+        Title:     things.String("First task"),
+        ProjectID: things.String(project.UUID),
+        Schedule:  things.Schedule(things.TaskScheduleAnytime),
+    }
+
+    task2 := things.Task{
+        UUID:      things.GenerateUUID(),
+        Title:     things.String("Second task"),
+        ProjectID: things.String(project.UUID),
+        Schedule:  things.Schedule(things.TaskScheduleAnytime),
+    }
+
+    // Write all items in one batch
+    items := []things.Item{
+        things.NewCreateTaskItem(project),
+        things.NewCreateTaskItem(task1),
+        things.NewCreateTaskItem(task2),
+    }
+
+    client.Write(history.ID, items, -1)
+    fmt.Println("✓ Created project with 2 tasks")
 }
 ```
 
-See the `example/` directory for a more complete example including history sync, task creation, and state aggregation.
+See the `example/` directory for more complete examples including history sync, task creation, and state aggregation.
 
 ## Persistent Sync Engine
 
@@ -123,12 +242,17 @@ package main
 
 import (
     "fmt"
-    thingscloud "github.com/nicolai86/things-cloud-sdk"
-    "github.com/nicolai86/things-cloud-sdk/sync"
+    "os"
+    things "github.com/arthursoares/things-cloud-sdk"
+    "github.com/arthursoares/things-cloud-sdk/sync"
 )
 
 func main() {
-    client := thingscloud.New(thingscloud.APIEndpoint, email, password)
+    client := things.New(
+        things.APIEndpoint,
+        os.Getenv("THINGS_USERNAME"),
+        os.Getenv("THINGS_PASSWORD"),
+    )
 
     // Open persistent sync database
     syncer, _ := sync.Open("things.db", client)
