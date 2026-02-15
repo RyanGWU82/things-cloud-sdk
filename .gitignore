@@ -25,3 +25,4 @@
 
 # HAR files (may contain credentials)
 *.har
+docs/blog-post.md
